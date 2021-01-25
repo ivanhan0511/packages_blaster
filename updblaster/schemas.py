@@ -1,5 +1,6 @@
+from datetime import datetime
 from typing import Optional
-from sqlalchemy import DateTime
+# from sqlalchemy import DateTime
 from pydantic import BaseModel
 
 
@@ -16,7 +17,7 @@ class PlaceCreate(PlaceBase):
 
 class Place(PlaceBase):
     id: int
-    created: DateTime
+    created: datetime
 
     class Config:
         orm_mode = True
@@ -37,7 +38,7 @@ class PackageCreate(PackageBase):
 
 class Package(PackageBase):
     id: int
-    created: DateTime
+    created: datetime
     valid_places: str
     invalid_places: str
 
@@ -47,16 +48,19 @@ class Package(PackageBase):
 
 # History
 class HistoryBase(BaseModel):
-    pass
+    package_name: str
+    package_version: str
+    place_code: str
 
 
 class HistoryCreate(HistoryBase):
-    package_name: str
-    package_versio: str
-    place_code: str
+    pass
 
 
 class History(HistoryBase):
     id: int
-    download_coun: str
-    last_download: DateTime
+    download_count: str
+    last_download: datetime
+
+    class Config:
+        orm_mode = True

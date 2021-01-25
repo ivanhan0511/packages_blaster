@@ -1,0 +1,6 @@
+fastapi
+starlette
+uvicorn
+pydantic
+sqlalchemy
+mysqlclient

@@ -3,7 +3,8 @@ import json
 import hashlib
 from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException
+import uvicorn
+from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 from starlette.responses import FileResponse
 
@@ -14,13 +15,15 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# R&D ENV
-BASE_URL = 'http://127.0.0.1:21080'
-PACKAGES_FOLDER = '/Users/ivan/'
-
-# Formal ENV
-# BASE_URL = 'http://update.zhzhiyu.com:21080'
-# PACKAGES_FOLDER = '/packages/'
+DEBUG = True
+if DEBUG:
+    # R&D ENV
+    BASE_URL = 'http://127.0.0.1:21080'
+    PACKAGES_FOLDER = '/Users/ivan'
+else:
+    # Formal ENV
+    BASE_URL = 'http://update.zhzhiyu.com:21080'
+    PACKAGES_FOLDER = '/packages/'  # Folder in ESC cloud server
 
 
 # Dependency
@@ -33,29 +36,47 @@ def get_db():
 
 
 @app.post("/places/", response_model=schemas.Place)
-def create_place(place: schemas.PlaceCreate, db: Session = Depends(get_db)):
-    db_place = crud.get_place_by_place_code(db, place_code=place.place_code)
+def add_place(place: schemas.PlaceCreate, db: Session = Depends(get_db)):
+    db_place = crud.retrieve_place_by_place_code(db=db, place_code=place.place_code)
     if db_place:
         # [TODO]: status_code有没有常量?
-        raise HTTPException(status_code=400, detail=f"The place code {place.place_code} is already registered.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"The place code {place.place_code} is already registered.")
     return crud.create_place(db=db, place=place)
 
 
 # [TODO]: 0-100是分页还是全部?
 @app.get("/places/", response_model=List[schemas.Place])
-def retrieve_places(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    db_places = crud.get_places(db, skip=skip, limit=limit)
+def get_places(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    db_places = crud.retrieve_places(db=db, skip=skip, limit=limit)
     return db_places
 
 
 @app.get("/places/{place_id}", response_model=schemas.Place)
-def retrieve_place(place_id: int, db: Session = Depends(get_db)):
-    db_place = crud.get_place(db, place_id=place_id)
+def get_place(place_id: int, db: Session = Depends(get_db)):
+    db_place = crud.retrieve_place(db=db, place_id=place_id)
     if db_place is None:
-        raise HTTPException(status_code=404, detail=f"Place {place_id} not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Place {place_id} not found")
     return db_place
 
 
+# [TODO]: 通过任意属性查询Place信息
+@app.get('/places/', response_model=schemas.Place)
+def get_place_by_place_code(place_code: str, db: Session = Depends(get_db)):
+    db_place = crud.retrieve_place_by_place_code(db=db, place_code=place_code)
+    if db_place is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Place {place_code} not found")
+
+    return db_place
+
+
+# def get_place_by_any_atribute():
+#     pass
+
+
+# [TODO]: to be continued...
 # @app.put('/places/{place_id}')
 # def update_place(place_id: int, place: models.Place, db: Session = Depends(get_db)):
 #     db_place = crud.get_place(db, place_id=place_id)
@@ -66,15 +87,35 @@ def retrieve_place(place_id: int, db: Session = Depends(get_db)):
 
 #
 # [TODO]: 上传
-#
+# @app.post('/packages/', responses=schemas.Package)
+# def upload_packages(package: File())
 
 
 @app.get("/packages/", response_model=List[schemas.Package])
-def retrieve_packages(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    db_packages = crud.get_places(db, skip=skip, limit=limit)
+def get_packages(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    db_packages = crud.retrieve_packages(db, skip=skip, limit=limit)
     return db_packages
 
 
+# [TODO]: Publish
+@app.get('/packages/{package_id}', response_model=schemas.Package)
+def get_package(package_id: int, db: Session = Depends(get_db)):
+    pass
+
+
+# [TODO]: 通过任意属性查询Package信息
+@app.get('/packages/', response_model=schemas.Package)
+def get_package_by_package_name(package_name: str, db: Session = Depends(get_db)):
+    pass
+
+
+# [TODO]: Publish
+@app.put('/packages/{package_name}', response_model=schemas.Package)
+def choose_ext_testing_places(package_name: str, valid_places: str, invalid_places: str, db: Session = Depends(get_db)):
+    pass
+
+
+# Temp
 @app.get('/downloads/{package_name}')
 async def download_package(package_name: str):
     """
@@ -82,6 +123,7 @@ async def download_package(package_name: str):
     :param package_name:
     :return: The downloaded packages are always with .zip
     """
+    # [TODO]: Fake data.
     package_path = f'{PACKAGES_FOLDER}/{package_name}.zip'
 
     return FileResponse(package_path, filename=f'{package_name}.zip')
@@ -106,7 +148,7 @@ def get_package_hash(package_path: str):
     return sha256.hexdigest()
 
 
-@app.get('/updblaster')
+@app.get('/updblaster/')
 def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get_db)):
     """
     Main API for communicating with client.
@@ -115,25 +157,27 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
     :param db:
     :return: A manual composed JSON response.
     """
-    db_package = crud.get_package_by_package_name(db, package_name=package_name)
+    db_package = crud.retrieve_package_by_package_name(db, package_name=package_name)
     if db_package:
-        raise HTTPException(status_code=400, detail=f"Package {package_name} not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Package {package_name} not found.")
 
     # [TODO]: 黑白名单，不要记录在package属性中
     # [TODO]: 黑白名单，抽出独立的方法
-    # valid: str = db_package.valid_places
-    valid: str = '1,2,3'
-    valid_list = valid.split(',')
+    # vp_str: str = db_package.valid_places
+    vp_str: str = '1,2,3'
+    valid_list = vp_str.split(',')
 
-    # invalid: str = db_package.invalid_places
-    invalid: str = '2,3'
-    invalid_list = invalid.split(',')
+    # invp_str: str = db_package.invalid_places
+    invp_str: str = '2,3'
+    invalid_list = invp_str.split(',')
     # [TODO]: Fake data, only update place `1`.
     enabled_places = list(set(valid_list).difference(set(invalid_list)))
 
-    place_id = crud.get_place_by_place_code(db, place_code=place_code)
+    place_id = crud.retrieve_place_by_place_code(db, place_code=place_code)
     if place_id not in enabled_places:
-        raise HTTPException(status_code=400, detail=f'This place {place_code} is forbided to update.')
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f'This place {place_code} is forbidden to update.')
     else:
         # [TODO]: Fake data, MUST be 'happymj' for testing.
         package_path = f'{PACKAGES_FOLDER}/{package_name}.zip'

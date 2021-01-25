@@ -5,7 +5,7 @@ from . import models, schemas
 
 # Place
 def create_place(db: Session, place: schemas.PlaceCreate):
-    db_place = models.Place(place_name=place.place_name, place_code=place.place_code)
+    db_place = models.Place(place_name=place.place_name, place_code=place.place_code, description=place.description)
     db.add(db_place)
     db.commit()
     db.refresh(db_place)
@@ -13,15 +13,15 @@ def create_place(db: Session, place: schemas.PlaceCreate):
     return db_place
 
 
-def get_places(db: Session, skip: int = 0, limit: int = 100):
+def retrieve_places(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Place).offset(skip).limit(limit).all()
 
 
-def get_place(db: Session, place_id: int):
+def retrieve_place(db: Session, place_id: int):
     return db.query(models.Place).filter(models.Place.id == place_id).first()
 
 
-def get_place_by_place_code(db: Session, place_code: str):
+def retrieve_place_by_place_code(db: Session, place_code: str):
     return db.query(models.Place).filter(models.Place.place_code == place_code).first()
 
 
@@ -44,15 +44,15 @@ def create_package(db: Session, package: schemas.PackageCreate):
     return db_package
 
 
-def get_packages(db: Session, skip: int = 0, limit: int = 100):
+def retrieve_packages(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Package).offset(skip).limit(limit).all()
 
 
-def get_package(db: Session, package_id: int):
+def retrieve_package(db: Session, package_id: int):
     return db.query(models.Package).filter(models.Package.id == package_id).first()
 
 
-def get_package_by_package_name(db: Session, package_name: str):
+def retrieve_package_by_package_name(db: Session, package_name: str):
     return db.query(models.Package).filter(models.Package.package_name == package_name).first()
 
 
