@@ -18,11 +18,11 @@ app = FastAPI()
 DEBUG = True
 if DEBUG:
     # R&D ENV
-    BASE_URL = 'http://127.0.0.1:21080'
+    BASE_URL = 'http://testupd.zhzhiyu.com:21080'
     PACKAGES_FOLDER = '/Users/ivan'
 else:
     # Formal ENV
-    BASE_URL = 'http://update.zhzhiyu.com:21080'
+    BASE_URL = 'https://update.zhzhiyu.com:21080'
     PACKAGES_FOLDER = '/packages/'  # Folder in ESC cloud server
 
 
@@ -39,15 +39,21 @@ def get_db():
 def add_place(place: schemas.PlaceCreate, db: Session = Depends(get_db)):
     db_place = crud.retrieve_place_by_place_code(db=db, place_code=place.place_code)
     if db_place:
-        # [TODO]: status_code有没有常量?
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail=f"The place code {place.place_code} is already registered.")
     return crud.create_place(db=db, place=place)
 
 
-# [TODO]: 0-100是分页还是全部?
 @app.get("/places/", response_model=List[schemas.Place])
 def get_places(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """
+    分页查询
+    [TODO]:
+    :param skip:
+    :param limit:
+    :param db:
+    :return:
+    """
     db_places = crud.retrieve_places(db=db, skip=skip, limit=limit)
     return db_places
 
@@ -62,17 +68,17 @@ def get_place(place_id: int, db: Session = Depends(get_db)):
 
 
 # [TODO]: 通过任意属性查询Place信息
-@app.get('/places/', response_model=schemas.Place)
-def get_place_by_place_code(place_code: str, db: Session = Depends(get_db)):
-    db_place = crud.retrieve_place_by_place_code(db=db, place_code=place_code)
-    if db_place is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Place {place_code} not found")
+# @app.get("/places/", response_model=schemas.Place)
+# def get_place_by_place_code(place_code: str, db: Session = Depends(get_db)):
+#     db_place = crud.retrieve_place_by_place_code(db=db, place_code=place_code)
+#     if db_place is None:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+#                         detail=f"Place {place_code} not found")
+#
+#     return db_place
 
-    return db_place
 
-
-# def get_place_by_any_atribute():
+# def get_place_by_any_attribute():
 #     pass
 
 
@@ -98,10 +104,11 @@ def get_packages(skip: int = 0, limit: int = 100, db: Session = Depends(get_db))
 
 
 # [TODO]: Publish
-@app.get('/packages/{package_id}', response_model=schemas.Package)
+@app.get("/packages/{package_id}", response_model=schemas.Package)
 def get_package(package_id: int, db: Session = Depends(get_db)):
-    pass
-
+    db_package = crud.retrieve_package(package_id=package_id, db=db)
+    if db_package:
+        return db_package
 
 # [TODO]: 通过任意属性查询Package信息
 @app.get('/packages/', response_model=schemas.Package)
@@ -110,13 +117,13 @@ def get_package_by_package_name(package_name: str, db: Session = Depends(get_db)
 
 
 # [TODO]: Publish
-@app.put('/packages/{package_name}', response_model=schemas.Package)
+@app.put("/packages/{package_name}", response_model=schemas.Package)
 def choose_ext_testing_places(package_name: str, valid_places: str, invalid_places: str, db: Session = Depends(get_db)):
     pass
 
 
 # Temp
-@app.get('/downloads/{package_name}')
+@app.get("/downloads/{package_name}")
 async def download_package(package_name: str):
     """
     An API for downloading package.
@@ -142,13 +149,12 @@ def get_package_hash(package_path: str):
             if not data:
                 break
             sha256.update(data)
-    # print(f'Package {package_name} hash is: {sha256.hexdigest()}')
-    print(f'Package aa.txt hash is: {sha256.hexdigest()}.')
+    print(f'Package {package_path} hash is: {sha256.hexdigest()}')
 
     return sha256.hexdigest()
 
 
-@app.get('/updblaster/')
+@app.get("/updblaster/")
 def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get_db)):
     """
     Main API for communicating with client.
@@ -158,36 +164,33 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
     :return: A manual composed JSON response.
     """
     db_package = crud.retrieve_package_by_package_name(db, package_name=package_name)
-    if db_package:
+    if not db_package:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Package {package_name} not found.")
 
     # [TODO]: 黑白名单，不要记录在package属性中
     # [TODO]: 黑白名单，抽出独立的方法
-    # vp_str: str = db_package.valid_places
-    vp_str: str = '1,2,3'
-    valid_list = vp_str.split(',')
+    vp_str: str = db_package.valid_places  # e.g.: '1,2,3'
+    valid_list = vp_str.split(',')  # e.g.: ['1', '2', '3']
 
-    # invp_str: str = db_package.invalid_places
-    invp_str: str = '2,3'
-    invalid_list = invp_str.split(',')
-    # [TODO]: Fake data, only update place `1`.
-    enabled_places = list(set(valid_list).difference(set(invalid_list)))
+    invp_str: str = db_package.invalid_places  # e.g.: '2,3'
+    invalid_list = invp_str.split(',')  # e.g.: ['2', '3']
+    enabled_places = list(set(valid_list).difference(set(invalid_list)))  # e.g.: ['1']
 
-    place_id = crud.retrieve_place_by_place_code(db, place_code=place_code)
-    if place_id not in enabled_places:
+    db_place = crud.retrieve_place_by_place_code(db, place_code=place_code)
+    if str(db_place.id) not in enabled_places:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail=f'This place {place_code} is forbidden to update.')
     else:
-        # [TODO]: Fake data, MUST be 'happymj' for testing.
         package_path = f'{PACKAGES_FOLDER}/{package_name}.zip'
         package_size = os.path.getsize(package_path)  # [TODO]: 由上传功能实现并写库
         package_hash = get_package_hash(package_path)  # [TODO]: 由上传功能实现并写库
         package_down_url = f'{BASE_URL}/downloads/{package_name}'  # [TODO]: 由上传功能实现并写库
+
         resp_dict = {
             "package_name": f"{db_package.package_name}",
             "package_version": f"{db_package.package_version}",
-            "package_length": f"{package_size}",
+            "package_length": f'{package_size}',
             "package_hash": f'{package_hash}',
             "package_down_url": f'{package_down_url}'
         }
