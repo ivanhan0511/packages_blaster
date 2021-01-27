@@ -2,7 +2,7 @@ import datetime
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.sql import func
 
-from .database import Base
+from updblaster.database import Base
 
 
 class Place(Base):
