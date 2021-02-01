@@ -1,6 +1,5 @@
 import os
 import time
-import json
 import hashlib
 from typing import List, Optional
 
@@ -9,10 +8,10 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 from starlette.responses import FileResponse
 
-from updblaster.models import Place, Package, History, Base
-from updblaster import schemas, crud
-from updblaster.database import SessionLocal, engine
-from updblaster.logger import logger
+from .models import Place, Package, History, Base
+from . import schemas, crud
+from .database import SessionLocal, engine
+from .logger import logger
 
 Base.metadata.create_all(bind=engine)
 
@@ -64,10 +63,10 @@ def get_places(skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
     :return:
     """
     if place_code and place_name:
-        a_places: List[Place] = crud.retrieve_places_by_place_code(place_code=place_code, db=db)
-        b_places: List[Place] = crud.retrieve_places_by_place_name(place_name=place_name, db=db)
-        if a_places and b_places:
-            if a_places[0].id == b_places[0].id:
+        c_places: List[Place] = crud.retrieve_places_by_place_code(place_code=place_code, db=db)
+        n_places: List[Place] = crud.retrieve_places_by_place_name(place_name=place_name, db=db)
+        if c_places and n_places:
+            if c_places[0].id == n_places[0].id:
                 db_places = crud.retrieve_places_by_place_code(db=db, place_code=place_code)
             else:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
@@ -76,16 +75,16 @@ def get_places(skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f'No place matches.')
     elif place_code:
-        a_places = crud.retrieve_places_by_place_code(place_code=place_code, db=db)
-        if a_places:
-            db_places = a_places
+        c_places = crud.retrieve_places_by_place_code(place_code=place_code, db=db)
+        if c_places:
+            db_places = c_places
         else:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f'No place matches {place_code}.')
     elif place_name:
-        b_places = crud.retrieve_places_by_place_name(place_name=place_name, db=db)
-        if b_places:
-            db_places = b_places
+        n_places = crud.retrieve_places_by_place_name(place_name=place_name, db=db)
+        if n_places:
+            db_places = n_places
         else:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f'No place matches {place_name}.')
@@ -102,48 +101,50 @@ def get_place(place_id: int, db: Session = Depends(get_db)):
     if db_place is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Place {place_id} not found")
-    logger.debug('Get single place.')
+    logger.debug(f'Get single place {place_id}.')
+
     return db_place
 
 
-# [TODO]: to be continued...
-# @app.put('/places/{place_id}', response_model=schemas.Place)
-# def update_place(place_id: int, place: Place, db: Session = Depends(get_db)):
-#     db_place: schemas.Place = crud.retrieve_place(db, place_id=place_id)
-#     if db_place is None:
-#         raise HTTPException(status_code=404, detail=f"Place {place_id} not found")
-#     db_place.
-#     update_item_encoded = jsonable_encoder(item)
-#     items[item_id] = update_item_encoded
-#     return update_item_encoded
+@app.put('/places/{place_id}', response_model=schemas.Place)
+def update_place(place_id: int, place: schemas.PlaceCreate, db: Session = Depends(get_db)):
+    db_place: schemas.Place = crud.retrieve_place(db, place_id=place_id)
+    if db_place is None:
+        raise HTTPException(status_code=404, detail=f"Place {place_id} not found")
+    updated_place = crud.update_place(place_id=place_id, place=place, db=db)
+    logger.debug(f'Place {place_id} successfully updated.')
+
+    return updated_place
 
 
 @app.delete('/places/{place_id}')
 def remove_place(place_id: int, db: Session = Depends(get_db)):
-    resp = crud.delete_place(db=db, place_id=place_id)
-    logger.info(f'Place {place_id} successfully deleted.')
+    db_place = crud.retrieve_place(place_id=place_id, db=db)
+    if db_place:
+        resp = crud.delete_place(db=db, place_id=place_id)
+        logger.info(f'Place {place_id} successfully deleted.')
+    else:
+        logger.info(f'The place {place_id} you want to remove does not exist.')
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f'The place {place_id} you want to remove does not exist.')
+
     return resp
 
 
 # ==============================================================================
 
 
-# @app.post('/packages/', responses=schemas.Package)
-@app.post('/packages/')
-async def upload_packages(package: bytes = File(...)):
-    """
-    创建Package的页面包含上传文件的动作，然后整体创建
-    :param package:
-    :return:
-    """
+@app.post('/packages/', response_model=schemas.Package)
+def add_package(package: schemas.PackageCreate, db: Session = Depends(get_db)):
+    pass
 
-    return {"package_length": len(package)}
 
 # @app.post('/upload/')
 # 上传多个文件，储备内容
 # @app.post("/uploadfiles/")
 # async def create_upload_files(files: List[UploadFile] = File(...)):
 #     return {"filenames": [file.filename for file in files]}
+
 
 @app.post("/file_upload")
 async def file_upload(file: UploadFile = File(...)):
@@ -156,16 +157,9 @@ async def file_upload(file: UploadFile = File(...)):
     except Exception as e:
         return {"message": str(e), 'time': time.time() - start, 'filename': file.filename}
 
+
 @app.get("/packages/", response_model=List[schemas.Package])
 def get_packages(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """
-    # [TODO]: 通过任意属性查询Package信息
-    支持包名查询
-    :param skip:
-    :param limit:
-    :param db:
-    :return:
-    """
     db_packages = crud.retrieve_packages(db, skip=skip, limit=limit)
     return db_packages
 
@@ -182,6 +176,14 @@ def get_package(package_id: int, db: Session = Depends(get_db)):
 # [TODO]: 发布效果
 @app.put("/packages/{package_id}", response_model=schemas.Package)
 def choose_ext_testing_places(package_id: int, valid_places: str, invalid_places: str, db: Session = Depends(get_db)):
+    """
+    Configure the white and black lists to control which places cloud be updated.
+    :param package_id:
+    :param valid_places:
+    :param invalid_places:
+    :param db:
+    :return:
+    """
     db_package: schemas.Package = crud.retrieve_package(db=db, package_id=package_id)
     if not db_package:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -223,13 +225,18 @@ def get_package_hash(package_path: str):
     return sha256.hexdigest()
 
 
+def get_enabled_places(white_list: str, black_list: str):
+    enabled_places = []
+    return enabled_places
+
+
 @app.get("/updblaster/")
 def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get_db)):
     """
     Main API for communicating with client.
     :param package_name: Package to be updated.
     :param place_code: If this place_code is enabled to be updated.
-    :param db:
+    :param db: DB session.
     :return: A manual composed JSON response.
     """
     db_package = crud.retrieve_package_by_package_name(db, package_name=package_name)
@@ -265,7 +272,8 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
             "package_down_url": f'{package_down_url}'
         }
 
-        return json.dumps(resp_dict)
+        # return json.dumps(resp_dict)
+        return jsonable_encoder(resp_dict)
 
 
 if __name__ == '__main__':

@@ -1,13 +1,12 @@
 from sqlalchemy.orm import Session
 
-from updblaster.models import Place, Package, History
-from updblaster import schemas
-from updblaster.logger import logger
+from .models import Place, Package, History
+from . import schemas
+from .logger import logger
 
 
 # Place
 def create_place(db: Session, place: schemas.PlaceCreate):
-    # db_place = Place(place_name=place.place_name, place_code=place.place_code, description=place.description)
     db_place = Place(**place.dict())
     db.add(db_place)
     db.commit()
@@ -32,7 +31,8 @@ def retrieve_place(db: Session, place_id: int):
 def retrieve_places_by_place_code(db: Session, place_code: str):
     logger.info(f'A RETRIEVE operation executed, which is `retrieve_places_by_place_code` by {place_code}.')
 
-    return db.query(Place).filter(Place.place_code == place_code).all()
+    # return db.query(Place).filter(Place.place_code == place_code).all()
+    return db.query(Place).filter(Place.place_code.ilike(f'{place_code}%')).all()
 
 
 def retrieve_places_by_place_name(db: Session, place_name: str):
@@ -41,20 +41,24 @@ def retrieve_places_by_place_name(db: Session, place_name: str):
     return db.query(Place).filter(Place.place_name == place_name).all()
 
 
-# def update_place(db: Session, place_id: int, place: schemas.PlaceCreate):
-#     # Place(**place.dict())
-#     # db.query(Place).filter(Place.id == place_id).update(dict(**palce))
-#     # db.query(models.User).filter(models.User.id == user_id).update({models.User.is_active: 0})
-#     db_place: schemas.PlaceCreate = db.query(Place).filter(Place.id == place_id).first()
-#     db_place.
-#     db.commit()
-#
-#     return db.query(Place).filter(Place.id == place_id).first()
+def update_place(db: Session, place_id: int, place: schemas.PlaceCreate):
+    # [TODO]: 是否可以有更优雅的实现，例如(**place.dict())之类的
+    db_place: schemas.PlaceCreate = db.query(Place).filter(Place.id == place_id).first()
+    db_place.place_code = place.place_code
+    db_place.place_name = place.place_name
+    if place.description:
+        db_place.description = place.description
+    db.commit()
+    db.refresh(db_place)
+    logger.info(f'A UPDATE operation executed, which is `update_place` by {place_id}.')
+
+    return db_place
+
 
 def delete_place(db: Session, place_id: int):
-    logger.info(f'A DELETE operation executed, which is `delete_place` by {place_id}.')
     db.query(Place).filter(Place.id == place_id).delete()
     db.commit()
+    logger.info(f'A DELETE operation executed, which is `delete_place` by {place_id}.')
 
     return {'message': f'Place {place_id} successfully deleted.'}
 

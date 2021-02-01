@@ -15,3 +15,21 @@ So far, 可以上传的包，即视为可用的包。
 ### Place
 通过黑白名单达到控制具体可更新的Place
 
+
+## Deployment
+
+### Installations
+
+```python
+# pip install fastapi uvicorn starlette pydantic sqlalchemy mysqlclient aiofiles python-multipart
+```
+
+### Configurations
+- database.py:
+  - `SQLALCHEMY_DATABASE_URL`
+- logger.py:
+  - `logger = logging.getLogger("Blaster")`
+  - `file_handler = logging.FileHandler('/Users/ivan/logs/default.log')`
+- main.py:
+  - `BASE_URL`
+  - `PACKAGES_FOLDER`
