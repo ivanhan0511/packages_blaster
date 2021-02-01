@@ -31,13 +31,16 @@ def retrieve_place(db: Session, place_id: int):
 def retrieve_places_by_place_code(db: Session, place_code: str):
     logger.info(f'A RETRIEVE operation executed, which is `retrieve_places_by_place_code` by {place_code}.')
 
-    # return db.query(Place).filter(Place.place_code == place_code).all()
-    return db.query(Place).filter(Place.place_code.ilike(f'{place_code}%')).all()
+    # 不能在这里做模糊查找，否则比对place_code与place_name的id的时候就会出现错误，因为List是无序的
+    # return db.query(Place).filter(Place.place_code.ilike(f'{place_code}%')).all()
+    return db.query(Place).filter(Place.place_code == place_code).all()
 
 
 def retrieve_places_by_place_name(db: Session, place_name: str):
     logger.info(f'A RETRIEVE operation executed, which is `retrieve_places_by_place_name` by {place_name}.')
 
+    # 不能在这里做模糊查找，否则比对place_code与place_name的id的时候就会出现错误，因为List是无序的
+    # return db.query(Place).filter(Place.place_name.like(f'{place_name}%')).all()
     return db.query(Place).filter(Place.place_name == place_name).all()
 
 
@@ -94,7 +97,7 @@ def retrieve_package(db: Session, package_id: int):
     return db.query(Package).filter(Package.id == package_id).first()
 
 
-def retrieve_package_by_package_name(db: Session, package_name: str):
+def retrieve_packages_by_package_name(db: Session, package_name: str):
     logger.info(f'A RETRIEVE operation executed, which is `retrieve_packages_by_place_name` by {package_name}.')
 
     return db.query(Package).filter(Package.package_name == package_name).first()

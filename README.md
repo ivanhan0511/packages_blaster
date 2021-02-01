@@ -31,5 +31,6 @@ So far, 可以上传的包，即视为可用的包。
   - `logger = logging.getLogger("Blaster")`
   - `file_handler = logging.FileHandler('/Users/ivan/logs/default.log')`
 - main.py:
+  - `DEBUG`
   - `BASE_URL`
   - `PACKAGES_FOLDER`

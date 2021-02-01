@@ -5,8 +5,8 @@ from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status, File, UploadFile
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
-from starlette.responses import FileResponse
 
 from .models import Place, Package, History, Base
 from . import schemas, crud
@@ -25,7 +25,7 @@ if DEBUG:
 else:
     # Formal ENV
     BASE_URL = 'https://update.zhzhiyu.com:21080'
-    PACKAGES_FOLDER = '/packages/'  # Folder in ESC cloud server
+    PACKAGES_FOLDER = '/packages/'  # Folder in Aliyun ECS cloud server
 
 
 # Dependency
@@ -41,7 +41,7 @@ def get_db():
 def add_place(place: schemas.PlaceCreate, db: Session = Depends(get_db)):
     db_place = crud.retrieve_places_by_place_code(db=db, place_code=place.place_code)
     if db_place:
-        logger.debug(f'Add place failed.')
+        logger.debug(f'Add place failed for existed place_code {place.place_code}.')
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail=f"The place code {place.place_code} is already registered.")
     logger.debug(f'Add place success.')
@@ -136,8 +136,7 @@ def remove_place(place_id: int, db: Session = Depends(get_db)):
 
 @app.post('/packages/', response_model=schemas.Package)
 def add_package(package: schemas.PackageCreate, db: Session = Depends(get_db)):
-    pass
-
+    db_package = crud.retrieve_package(package_id=package.package_name)
 
 # @app.post('/upload/')
 # 上传多个文件，储备内容
@@ -146,12 +145,13 @@ def add_package(package: schemas.PackageCreate, db: Session = Depends(get_db)):
 #     return {"filenames": [file.filename for file in files]}
 
 
+# [TODO]]: 与post packages合并
 @app.post("/file_upload")
 async def file_upload(file: UploadFile = File(...)):
     start = time.time()
     try:
         res = await file.read()
-        with open(file.filename, "wb") as f:
+        with open(f'{PACKAGES_FOLDER}/{file.filename}', "wb") as f:
             f.write(res)
         return {"message": "success", 'time': time.time() - start, 'filename': file.filename}
     except Exception as e:
@@ -225,11 +225,7 @@ def get_package_hash(package_path: str):
     return sha256.hexdigest()
 
 
-def get_enabled_places(white_list: str, black_list: str):
-    enabled_places = []
-    return enabled_places
-
-
+# [TODO]: 更新代码为必选query parameters
 @app.get("/updblaster/")
 def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get_db)):
     """
@@ -239,7 +235,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
     :param db: DB session.
     :return: A manual composed JSON response.
     """
-    db_package = crud.retrieve_package_by_package_name(db, package_name=package_name)
+    db_package = crud.retrieve_packages_by_package_name(db, package_name=package_name)
     if not db_package:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Package {package_name} not found.")
@@ -251,6 +247,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
 
     invp_str: str = db_package.invalid_places  # e.g.: '2,3'
     invalid_list = invp_str.split(',')  # e.g.: ['2', '3']
+    # set去重，并取在白名单中但不在黑名单中的值
     enabled_places = list(set(valid_list).difference(set(invalid_list)))  # e.g.: ['1']
 
     db_places = crud.retrieve_places_by_place_code(db, place_code=place_code)
@@ -273,7 +270,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
         }
 
         # return json.dumps(resp_dict)
-        return jsonable_encoder(resp_dict)
+        return JSONResponse(content=jsonable_encoder(resp_dict))
 
 
 if __name__ == '__main__':
