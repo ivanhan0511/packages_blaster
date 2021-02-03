@@ -3,7 +3,7 @@ import time
 import hashlib
 from typing import List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, status, File, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, status, File, UploadFile, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
@@ -35,6 +35,23 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# [TODO]: For login.
+# def get_cookie_or_token(
+#     websocket: WebSocket,
+#     session: Optional[str] = Cookie(None),
+#     token: Optional[str] = Query(None),
+# ):
+#     if session is None and token is None:
+#         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+#     return session or token
+
+
+@app.get("/items/")
+async def read_items(q: List[str] = Query(["foo", "bar"])):
+    query_items = {"q": q}
+    return query_items
 
 
 @app.post("/places/", response_model=schemas.Place)
@@ -128,7 +145,7 @@ def remove_place(place_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f'The place {place_id} you want to remove does not exist.')
 
-    return resp
+    return JSONResponse(content=jsonable_encoder(resp))
 
 
 # ==============================================================================

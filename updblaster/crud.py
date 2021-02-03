@@ -1,4 +1,7 @@
+from typing import Optional, List
+
 from sqlalchemy.orm import Session
+from fastapi import Query
 
 from .models import Place, Package, History
 from . import schemas
