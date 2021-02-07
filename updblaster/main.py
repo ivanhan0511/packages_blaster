@@ -282,7 +282,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
             data_dict = {"package_name": package.package_name,
                          "package_version": package.package_version,
                          "package_hash": package.package_hash,
-                         "package_path": '',  # 客户端会忽略掉
+                         "package_path": 'e:\\blaster\\',
                          "package_length": package.package_length,
                          "package_down_url": package.package_down_url}
             packages_list.append(data_dict)
@@ -321,7 +321,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
                 "package_length": f'{package_length}',
                 "package_hash": f'{package_hash}',
                 "package_down_url": f'{package_list_down_url}',
-                "package_path": f'./blaster/'  # 暂时先返回空字符串，客户端会忽略掉
+                "package_path": f'./blaster/'
             }
 
             return JSONResponse(content=jsonable_encoder(resp_dict))
@@ -367,7 +367,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
                 "package_length": f'{db_package.package_length}',
                 "package_hash": f'{db_package.package_hash}',
                 "package_down_url": f'{db_package.package_down_url}',
-                "package_path": f'e:\\blaster\\'  # 暂时先返回空字符串，客户端会忽略掉
+                "package_path": f'e:\\blaster\\'
             }
 
             return JSONResponse(content=jsonable_encoder(resp_dict))
