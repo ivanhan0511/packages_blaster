@@ -279,12 +279,13 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
 
         packages_list = []
         for package in db_packages:
+            # [TODO]: 该字典被2次调用组装了，后续抽象出来
             data_dict = {"package_name": package.package_name,
                          "package_version": package.package_version,
-                         "package_hash": package.package_hash,
-                         "package_path": 'e:\\blaster\\',
                          "package_length": package.package_length,
-                         "package_down_url": package.package_down_url}
+                         "package_hash": package.package_hash,
+                         "package_down_url": package.package_down_url,
+                         "package_path": f'e:\\blaster\\{package_name}\\'}
             packages_list.append(data_dict)
 
         newpackagelist_dict = {
@@ -321,7 +322,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
                 "package_length": f'{package_length}',
                 "package_hash": f'{package_hash}',
                 "package_down_url": f'{package_list_down_url}',
-                "package_path": f'./blaster/'
+                "package_path": f'./blaster/'  # This is only for packagelist.json
             }
 
             return JSONResponse(content=jsonable_encoder(resp_dict))
@@ -330,6 +331,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
             logger.error(f'Write {zip_file_path} failed.')
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f'Internal operation failed.')
+
     else:
         """
         请求为非package_name="packagelist"
@@ -367,7 +369,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
                 "package_length": f'{db_package.package_length}',
                 "package_hash": f'{db_package.package_hash}',
                 "package_down_url": f'{db_package.package_down_url}',
-                "package_path": f'e:\\blaster\\'
+                "package_path": f'e:\\blaster\\{package_name}\\'
             }
 
             return JSONResponse(content=jsonable_encoder(resp_dict))
