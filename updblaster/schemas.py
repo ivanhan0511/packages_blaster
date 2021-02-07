@@ -8,7 +8,7 @@ class PlaceBase(BaseModel):
     place_code: str
     place_name: str
     description: Optional[str]
-    # package_path: str
+    package_path: Optional[str]
 
 
 class PlaceCreate(PlaceBase):
@@ -34,10 +34,10 @@ class PackageBase(BaseModel):
     package_down_url: str
     valid_places: Optional[str]
     invalid_places: Optional[str]
+    package_run_cmd: Optional[str]
 
 
 class PackageCreate(PackageBase):
-    # package_file: bytes
     pass
 
 
@@ -46,6 +46,27 @@ class PackageUpdate(PackageBase):
 
 
 class Package(PackageBase):
+    id: int
+    created: datetime
+
+    class Config:
+        orm_mode = True
+
+
+# Controller
+class PackagesListBase(BaseModel):
+    """
+    用于newpackagelist.json的管理，以及包的发布，选择可升级的place
+    """
+    packagelist_name: str
+    packagelist_version: str
+
+
+class PackagesListCreate(PackagesListBase):
+    pass
+
+
+class PackagesList(PackagesListBase):
     id: int
     created: datetime
 

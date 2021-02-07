@@ -12,7 +12,7 @@ class Place(Base):
     place_code = Column(String(256), unique=True, nullable=False, index=True, comment='Place识别码')
     place_name = Column(String(256), nullable=False, index=True, comment='Place名称')
     description = Column(String(1024), comment='描述')
-    # package_path = Column(String(512), default='e:\\blaster\\', comment='Customized Path')
+    package_path = Column(String(512), nullable=False, default='e:\\blaster\\', comment='Customized Path')
     created = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
 
 
@@ -25,17 +25,18 @@ class Package(Base):
     package_length = Column(String(1024), nullable=False, comment='Package大小')
     package_hash = Column(String(256), nullable=False, comment='Package哈希值')
     package_down_url = Column(String(256), nullable=False, comment='下载地址')
+    package_run_cmd = Column(String(256), nullable=True, default='', comment='执行命令')
     created = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
     valid_places = Column(String(1024), default='', comment='白名单')
     invalid_places = Column(String(1024), default='', comment='黑名单')
 
 
-class PackageVersion(Base):
+class PackageList(Base):
     __tablename__ = 'packagelist'
 
     id = Column(Integer, primary_key=True, index=True)
-    packagelist_name = Column(String(256), nullable=False, comment='packagelist名称')
-    packagelist_version = Column(String(256), unique=True, nullable=False, comment='packagelist版本')
+    packagelist_name = Column(String(256), nullable=False, default='packagelist', comment='packagelist名称')
+    packagelist_version = Column(String(256), nullable=False, comment='packagelist版本')
     created = Column(DateTime(timezone=True), server_default=func.now(), comment='创建时间')
 
 

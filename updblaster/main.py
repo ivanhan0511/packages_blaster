@@ -134,7 +134,7 @@ def remove_place(place_id: int, db: Session = Depends(get_db)):
 #     return {"filenames": [file.filename for file in files]}
 
 @app.post('/packages/', response_model=schemas.Package)
-async def add_package(package_name: str, package_version: str,
+async def add_package(package_name: str, package_version: str, package_run_cmd: Optional[str] = Query(None),
                       file: UploadFile = File(...),
                       db: Session = Depends(get_db)):
     """
@@ -147,8 +147,7 @@ async def add_package(package_name: str, package_version: str,
     """
 
     # Checkout whether this package is existed.
-    db_package = crud.retrieve_package_by_package_name(package_name=package_name, db=db)
-    if db_package:
+    if crud.retrieve_package_by_package_name(package_name=package_name, db=db):
         logger.info(f'The place code {package_name} is already existed.')
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail=f'The place code {package_name} is already existed.')
@@ -168,21 +167,35 @@ async def add_package(package_name: str, package_version: str,
     # Prepare for creating package instance.
     file_path = f'{settings.PACKAGES_FOLDER}/{file.filename}'
     package_length = os.path.getsize(filename=file_path)
-    logger.debug(f'length: {package_length}')
     package_hash = get_package_hash(file_path)
-    logger.debug(f'hash: {package_hash}')
 
     # e.g.: http://127.0.0.1:21080/packages/downloads/happymj.zip
     package_down_url = f'{settings.BASE_URL}/packages/downloads/{file.filename}'
 
+    # [TODO]: 抽取方法
     req_dict = {'package_name': package_name,
                 'package_version': package_version,
                 'package_length': package_length,
                 'package_hash': package_hash,
-                'package_down_url': package_down_url}
+                'package_down_url': package_down_url,
+                'package_run_cmd': package_run_cmd}
 
-    # crud.
-    return crud.create_package(db=db, req_dict=req_dict)
+    db_package = crud.create_package(db=db, req_dict=req_dict)
+
+    if db_package:
+        # 在创建package成功之后，更新newpackagelist的版本
+        version = crud.retrieve_newpackagelist_desc(db=db)
+        if version:
+            new_version = f'{version.id + 1}'
+            d = {'packagelist_version': new_version}
+            crud.create_newpackagelist(db=db, npl_dict=d)
+            logger.info(f'After create a package, update the newpackagelist {new_version}.')
+        else:
+            d = {'packagelist_version': '1'}
+            crud.create_newpackagelist(db=db, npl_dict=d)  # [TODO]: 此处是否需要容错？
+            logger.info(f'After create a package, update the newpackagelist 1.')
+
+    return db_package
 
 
 @app.get("/packages/", response_model=List[schemas.Package])
@@ -217,15 +230,16 @@ def get_package(package_id: int, db: Session = Depends(get_db)):
 
 
 @app.put('/packages/{package_id}', response_model=schemas.Package, summary='Publish')
-def publish_package(package_id: int, package_version: str,
-                    valid_places: str, invalid_places: str, db: Session = Depends(get_db)):
+def publish_package(package_id: int, package_version: str, valid_places: str, invalid_places: str,
+                    package_run_cmd: Optional[str] = Query(None), db: Session = Depends(get_db)):
     if not crud.retrieve_package_by_package_id(package_id=package_id, db=db):
         logger.error(f'Package {package_id} not found.')
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f'Package {package_id} not found.')
 
-    db_package = crud.update_package_to_publish(db=db, package_id=package_id, package_version=package_version,
-                                                valid_places=valid_places, invalid_places=invalid_places)
+    db_package = crud.update_package_to_publish(db=db, package_id=package_id,
+                                                package_version=package_version, valid_places=valid_places,
+                                                invalid_places=invalid_places, package_run_cmd=package_run_cmd)
 
     return db_package
 
@@ -233,9 +247,24 @@ def publish_package(package_id: int, package_version: str,
 @app.delete('/packages/{package_id}')
 def remove_package(package_id: int, db: Session = Depends(get_db)):
     db_package = crud.retrieve_package_by_package_id(db=db, package_id=package_id)
+
     if db_package:
         resp = crud.delete_package(db=db, package_id=package_id)
         logger.info(f'Remove package {package_id} done.')
+
+        # 在删除package成功之后，更新newpackagelist的版本
+        version = crud.retrieve_newpackagelist_desc(db=db)
+        if version:
+            new_version = f'{version.id + 1}'
+            d = {'packagelist_version': new_version}
+            crud.create_newpackagelist(db=db, npl_dict=d)
+            logger.info(f'After delete a package {package_id}, updated the newpackagelist {new_version}.')
+        else:
+            d = {'packagelist_version': '1'}
+            crud.create_newpackagelist(db=db, npl_dict=d)
+            logger.info(f'After delete a package {package_id}, updated the newpackagelist 1.')
+        # [TODO]: 此处是否需要容错？
+
         return JSONResponse(jsonable_encoder(resp))
     else:
         logger.info(f'The package {package_id} to be deleted does not exist.')
@@ -254,11 +283,25 @@ async def download_package(zip_file_name: str):
     file_path = f'{settings.PACKAGES_FOLDER}/{zip_file_name}'
     if os.path.exists(file_path):
         logger.debug(f'The request package {zip_file_name} exists, to be downloaded.')
+
         return FileResponse(file_path, filename=f'{zip_file_name}')
+
     else:
         logger.info(f'The request package {zip_file_name} not found.')
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f'The request package {zip_file_name} not found.')
+
+
+@app.get('/npl/', response_model=schemas.PackagesList)
+def get_newpackagelists(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    db_newpackagelists = crud.retrieve_newpackagelists(db=db, skip=skip, limit=limit)
+    if not db_newpackagelists:
+        logger.error(f'No newpackagelist found.')
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f'No newpackagelist found.')
+
+    logger.info(f'Get new package list.')
+    return db_newpackagelists
 
 
 @app.get("/updblaster/", summary='Main API')
@@ -276,11 +319,23 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
         如果是此字符串，则查询数据库的最新数据并更新`newpackagelist.json`，
         将json文件压缩成zip包，生成下载URL，返回
         """
-        db_packages = crud.retrieve_packages_all(db=db)
+        db_packages = crud.retrieve_packages_all(db=db)  #Mark
         if not db_packages:
             logger.info(f'No package found.')
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f'No package found.')
+        db_place = crud.retrieve_place_by_place_code(db=db, place_code=place_code)
+
+        if not db_place:
+            logger.info(f'No place found.')
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f'No place found.')
+
+        newpackagelist: schemas.PackagesList = crud.retrieve_newpackagelist_desc(db=db)
+        if not newpackagelist:
+            logger.error(f'No packagelist found.')
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f'No packagelist found.')
 
         packages_list = []
         for package in db_packages:
@@ -290,13 +345,13 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
                          "package_length": package.package_length,
                          "package_hash": package.package_hash,
                          "package_down_url": package.package_down_url,
-                         "package_path": f'e:\\blaster\\{package.package_name}\\'}
+                         "package_path": f'{db_place.package_path}\\{package.package_name}\\',
+                         "package_run_cmd": package.package_run_cmd}
             packages_list.append(data_dict)
 
-        packagelist_version = '8'  # [TODO]: 增加新表记录packagelist的版本号
         newpackagelist_dict = {
-            "packagelist_version": packagelist_version,
-            "packagelist_name": "packagelist",
+            "packagelist_version": newpackagelist.packagelist_version,
+            "packagelist_name": newpackagelist.packagelist_name,
             "packagelist_info_url": f"{settings.BASE_URL}/updblaster/",
             "packages_list": packages_list
         }
@@ -322,14 +377,14 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
             packagelist_down_url = f'{settings.BASE_URL}/packages/downloads/{settings.ZIP_FILE_NAME}'  #newpackagelist.zip
             packagelist_length = os.path.getsize(zip_file_path)
             packagelist_hash = get_package_hash(zip_file_path)
-            resp_dict = {
-                "package_name": f"{package_name}",
-                "package_version": f"{packagelist_version}",  # PackageList的版本，岁普通包的变化而+1 [TODO]: 新表
-                "package_length": f'{packagelist_length}',
-                "package_hash": f'{packagelist_hash}',
-                "package_down_url": f'{packagelist_down_url}',
-                "package_path": f'./blaster/'  # This is only for packagelist.json
-            }
+
+            resp_dict = {"package_name": newpackagelist.packagelist_name,
+                         "package_version": newpackagelist.packagelist_version,
+                         "package_length": packagelist_length,
+                         "package_hash": packagelist_hash,
+                         "package_down_url": packagelist_down_url,
+                         "package_path": f'./blaster/',  # This is only for packagelist.json
+                         "package_run_cmd": ''}  # This is only for packagelist.json
 
             return JSONResponse(content=jsonable_encoder(resp_dict))
 
@@ -358,7 +413,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
         # set去重，并取在白名单中但不在黑名单中的值
         enabled_places = list(set(valid_list).difference(set(invalid_list)))  # e.g.: ['1']
 
-        db_place = crud.retrieve_place_by_place_code(db, place_code=place_code)
+        db_place: schemas.Place = crud.retrieve_place_by_place_code(db, place_code=place_code)
         if not db_place:
             logger.info(f'Place {place_code} not found.')
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -369,18 +424,17 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail=f'This place {place_code} is forbidden to update.')
         else:
-            resp_dict = {
-                "package_name": f"{db_package.package_name}",
-                "package_version": f"{db_package.package_version}",
-                "package_length": f'{db_package.package_length}',
-                "package_hash": f'{db_package.package_hash}',
-                "package_down_url": f'{db_package.package_down_url}',
-                "package_path": f'e:\\blaster\\{package_name}\\'
-            }
+            resp_dict = {"package_name": db_package.package_name,
+                         "package_version": db_package.package_version,
+                         "package_length": db_package.package_length,
+                         "package_hash": db_package.package_hash,
+                         "package_down_url": db_package.package_down_url,
+                         "package_path": f'{db_place.package_path}{db_package.package_name}\\',  # e:\\blaster\\happymj
+                         "package_run_cmd": db_package.package_run_cmd}
 
             return JSONResponse(content=jsonable_encoder(resp_dict))
 
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run(app=app, host='0.0.0.0', port=21080, workers=2, reload=True)
+    uvicorn.run(app=app, host='0.0.0.0', port=21080, workers=1, reload=True)
