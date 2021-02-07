@@ -140,16 +140,10 @@ def retrieve_packages_by_fuzzy_name(db: Session, package_name: str):
     return db.query(Package).filter(Package.package_name.ilike(f'{package_name}%')).all()
 
 
-def update_package_to_publish(db: Session, package_id: int, valid_places: str, invalid_places: str):
-    """
-    Used for publish. Input valid places to enable, and input invalid places to disable.
-    :param db:
-    :param package_id:
-    :param valid_places:
-    :param invalid_places:
-    :return:
-    """
+def update_package_to_publish(db: Session, package_id: int,
+                              package_version: str, valid_places: str, invalid_places: str):
     db_package: schemas.PackageUpdate = db.query(Package).filter(Package.id == package_id).first()
+    db_package.package_version = package_version
     db_package.valid_places = valid_places
     db_package.invalid_places = invalid_places
     db.commit()

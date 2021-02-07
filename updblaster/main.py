@@ -217,8 +217,14 @@ def get_package(package_id: int, db: Session = Depends(get_db)):
 
 
 @app.put('/packages/{package_id}', response_model=schemas.Package, summary='Publish')
-def publish_package(package_id: int, valid_places: str, invalid_places: str, db: Session = Depends(get_db)):
-    db_package = crud.update_package_to_publish(db=db, package_id=package_id,
+def publish_package(package_id: int, package_version: str,
+                    valid_places: str, invalid_places: str, db: Session = Depends(get_db)):
+    if not crud.retrieve_package_by_package_id(package_id=package_id, db=db):
+        logger.error(f'Package {package_id} not found.')
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f'Package {package_id} not found.')
+
+    db_package = crud.update_package_to_publish(db=db, package_id=package_id, package_version=package_version,
                                                 valid_places=valid_places, invalid_places=invalid_places)
 
     return db_package
@@ -270,7 +276,6 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
         如果是此字符串，则查询数据库的最新数据并更新`newpackagelist.json`，
         将json文件压缩成zip包，生成下载URL，返回
         """
-        packagelist_version = '1'  # [TODO]: 增加新表记录packagelist的版本号
         db_packages = crud.retrieve_packages_all(db=db)
         if not db_packages:
             logger.info(f'No package found.')
@@ -285,9 +290,10 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
                          "package_length": package.package_length,
                          "package_hash": package.package_hash,
                          "package_down_url": package.package_down_url,
-                         "package_path": f'e:\\blaster\\{package_name}\\'}
+                         "package_path": f'e:\\blaster\\{package.package_name}\\'}
             packages_list.append(data_dict)
 
+        packagelist_version = '8'  # [TODO]: 增加新表记录packagelist的版本号
         newpackagelist_dict = {
             "packagelist_version": packagelist_version,
             "packagelist_name": "packagelist",
@@ -313,15 +319,15 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
                 zf.write(json_file_path, f'{settings.JSON_FILE_NAME}')
 
             # Concatenate the download URL.
-            package_list_down_url = f'{settings.BASE_URL}/packages/downloads/{settings.ZIP_FILE_NAME}'  #newpackagelist.zip
-            package_length = os.path.getsize(zip_file_path)
-            package_hash = get_package_hash(zip_file_path)
+            packagelist_down_url = f'{settings.BASE_URL}/packages/downloads/{settings.ZIP_FILE_NAME}'  #newpackagelist.zip
+            packagelist_length = os.path.getsize(zip_file_path)
+            packagelist_hash = get_package_hash(zip_file_path)
             resp_dict = {
                 "package_name": f"{package_name}",
-                "package_version": f"1",  # [TODO]: 新表
-                "package_length": f'{package_length}',
-                "package_hash": f'{package_hash}',
-                "package_down_url": f'{package_list_down_url}',
+                "package_version": f"{packagelist_version}",  # PackageList的版本，岁普通包的变化而+1 [TODO]: 新表
+                "package_length": f'{packagelist_length}',
+                "package_hash": f'{packagelist_hash}',
+                "package_down_url": f'{packagelist_down_url}',
                 "package_path": f'./blaster/'  # This is only for packagelist.json
             }
 
@@ -377,4 +383,4 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run(app=app, host='0.0.0.0', port=21080, works=1, reload=True)
+    uvicorn.run(app=app, host='0.0.0.0', port=21080, workers=2, reload=True)
