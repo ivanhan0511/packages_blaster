@@ -1,6 +1,5 @@
 import os
 import time
-import zipfile
 import json
 from typing import List, Optional
 
@@ -10,11 +9,11 @@ from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
 from . import settings
+from .database import SessionLocal, engine
 from .models import Base
 from . import schemas, crud
-from .database import SessionLocal, engine
 from .logger import logger
-from .simple_tools import get_package_hash
+from .simple_tools import main_tools
 
 Base.metadata.create_all(bind=engine)
 
@@ -50,7 +49,7 @@ def add_place(place: schemas.PlaceCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail=f"The place code {place.place_code} is already existed.")
 
-    logger.debug(f'Add place success.')
+    logger.debug(f'Add a new place successfully.')
     return crud.create_place(db=db, place=place)
 
 
@@ -61,7 +60,7 @@ def get_fuzzy_places(skip: int = 0, limit: int = 100, db: Session = Depends(get_
         fuzzy_c_places = crud.retrieve_places_by_fuzzy_code(db=db, place_code=q)
         fuzzy_n_places = crud.retrieve_places_by_fuzzy_name(db=db, place_name=q)
 
-        if not fuzzy_c_places:
+        if not fuzzy_c_places and not fuzzy_n_places:
             if not fuzzy_n_places:
                 logger.info(f'No place matches {q}.')
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -134,7 +133,9 @@ def remove_place(place_id: int, db: Session = Depends(get_db)):
 #     return {"filenames": [file.filename for file in files]}
 
 @app.post('/packages/', response_model=schemas.Package)
-async def add_package(package_name: str, package_version: str, package_run_cmd: Optional[str] = Query(None),
+async def add_package(package_name: str = Query(..., min_length=2, max_length=32),
+                      package_version: str = Query(..., min_length=1, max_length=16),
+                      package_run_cmd: Optional[str] = Query(None, min_length=2, max_length=512),
                       file: UploadFile = File(...),
                       db: Session = Depends(get_db)):
     """
@@ -155,6 +156,7 @@ async def add_package(package_name: str, package_version: str, package_run_cmd: 
     # [TODO]: 优化该上传前、上传中、上传中、上传效率等，参考相关文章
     start = time.time()
     try:
+        # 以下1行代码可能涉及性能问题，因为此处为web端上传的package文件，可能是以GB为单位的包
         data = await file.read()
         with open(f'{settings.PACKAGES_FOLDER}/{file.filename}', "wb") as f:
             f.write(data)
@@ -166,8 +168,10 @@ async def add_package(package_name: str, package_version: str, package_run_cmd: 
 
     # Prepare for creating package instance.
     file_path = f'{settings.PACKAGES_FOLDER}/{file.filename}'
+
+    # 以下2行代码可能涉及性能问题，因为此处为web端上传的package文件，可能是以GB为单位的包
     package_length = os.path.getsize(filename=file_path)
-    package_hash = get_package_hash(file_path)
+    package_hash = main_tools.get_package_hash(file_path)
 
     # e.g.: http://127.0.0.1:21080/packages/downloads/happymj.zip
     package_down_url = f'{settings.BASE_URL}/packages/downloads/{file.filename}'
@@ -230,22 +234,30 @@ def get_package(package_id: int, db: Session = Depends(get_db)):
 
 
 @app.put('/packages/{package_id}', response_model=schemas.Package, summary='Publish')
-def publish_package(package_id: int, package_version: str, valid_places: str, invalid_places: str,
-                    package_run_cmd: Optional[str] = Query(None), db: Session = Depends(get_db)):
+def publish_package(package_id: int,
+                    package_version: str,
+                    valid_places: str,
+                    invalid_places: Optional[str] = Query(None),
+                    package_run_cmd: Optional[str] = Query(None),
+                    db: Session = Depends(get_db)):
     if not crud.retrieve_package_by_package_id(package_id=package_id, db=db):
         logger.error(f'Package {package_id} not found.')
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f'Package {package_id} not found.')
 
-    db_package = crud.update_package_to_publish(db=db, package_id=package_id,
-                                                package_version=package_version, valid_places=valid_places,
-                                                invalid_places=invalid_places, package_run_cmd=package_run_cmd)
+    db_package = crud.update_package_to_publish(package_id=package_id,
+                                                package_version=package_version,
+                                                valid_places=valid_places,
+                                                invalid_places=invalid_places,
+                                                package_run_cmd=package_run_cmd,
+                                                db=db)
+    # [TODO]: 此处没有容错？
 
     return db_package
 
 
 @app.delete('/packages/{package_id}')
-def remove_package(package_id: int, db: Session = Depends(get_db)):
+def remove_package(package_id: int, db: Session = Depends(get_db)) -> json:
     db_package = crud.retrieve_package_by_package_id(db=db, package_id=package_id)
 
     if db_package:
@@ -279,7 +291,6 @@ async def download_package(zip_file_name: str):
     :param zip_file_name:
     :return: The downloaded packages are always with .zip
     """
-    # [TODO]: 真实数据和假数据的路径及文件名称要确认
     file_path = f'{settings.PACKAGES_FOLDER}/{zip_file_name}'
     if os.path.exists(file_path):
         logger.debug(f'The request package {zip_file_name} exists, to be downloaded.')
@@ -293,8 +304,9 @@ async def download_package(zip_file_name: str):
 
 
 @app.get('/npl/', response_model=schemas.PackagesList)
-def get_newpackagelists(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def get_newpackagelists(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)) -> list:
     db_newpackagelists = crud.retrieve_newpackagelists(db=db, skip=skip, limit=limit)
+
     if not db_newpackagelists:
         logger.error(f'No newpackagelist found.')
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -305,7 +317,7 @@ def get_newpackagelists(skip: int = 0, limit: int = 100, db: Session = Depends(g
 
 
 @app.get("/updblaster/", summary='Main API')
-def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get_db)):
+def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get_db)) -> json:
     """
     Main API for communicating with client.
     可更新self_service, packagelist.json, <normal_package>
@@ -319,99 +331,48 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
         如果是此字符串，则查询数据库的最新数据并更新`newpackagelist.json`，
         将json文件压缩成zip包，生成下载URL，返回
         """
-        db_packages = crud.retrieve_packages_all(db=db)  #Mark
+        db_packages = crud.retrieve_packages_all(db=db)  # 不分页，获取所有packages
         if not db_packages:
-            logger.info(f'No package found.')
+            logger.error(f'No package found.')
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f'No package found.')
-        db_place = crud.retrieve_place_by_place_code(db=db, place_code=place_code)
 
+        db_place = crud.retrieve_place_by_place_code(db=db, place_code=place_code)
         if not db_place:
-            logger.info(f'No place found.')
+            logger.error(f'No place found.')
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f'No place found.')
 
+        # 倒序获取最新id的行数据，也可以达到判断是否为空表的功能
         newpackagelist: schemas.PackagesList = crud.retrieve_newpackagelist_desc(db=db)
         if not newpackagelist:
-            logger.error(f'No packagelist found.')
+            logger.error(f'No newpackagelist found.')
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f'No packagelist found.')
 
-        packages_list = []
-        for package in db_packages:
-            # [TODO]: 该字典被2次调用组装了，后续抽象出来
-            data_dict = {"package_name": package.package_name,
-                         "package_version": package.package_version,
-                         "package_length": package.package_length,
-                         "package_hash": package.package_hash,
-                         "package_down_url": package.package_down_url,
-                         "package_path": f'{db_place.package_path}\\{package.package_name}\\',
-                         "package_run_cmd": package.package_run_cmd}
-            packages_list.append(data_dict)
+        # 组装外层newpackagelist的数据
+        newpackagelist_dict = main_tools.assemble_newpackagelist_dict(newpackagelist=newpackagelist,
+                                                                      packages=db_packages,
+                                                                      place=db_place)
 
-        newpackagelist_dict = {
-            "packagelist_version": newpackagelist.packagelist_version,
-            "packagelist_name": newpackagelist.packagelist_name,
-            "packagelist_info_url": f"{settings.BASE_URL}/updblaster/",
-            "packages_list": packages_list
-        }
-
-        json_file_path = f'{settings.PACKAGES_FOLDER}/{settings.JSON_FILE_NAME}'
-        try:
-            # Create the json file.
-            with open(json_file_path, 'w') as f:
-                f.write(json.dumps(newpackagelist_dict, indent=4))  # 注意indent=4
-
-        except FileNotFoundError as e:
-            logger.error(f'Write {json_file_path} failed.')
+        # 生成json文件并压缩成zip包
+        resp_dict = main_tools.generate_zipped_json_file_then_resp(newpackagelist_dict=newpackagelist_dict)
+        if not resp_dict:
+            logger.error(f'Internal error occurred when dealing with newpackagelist, json, zip, and resp_dict.')
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                                detail=f'Internal operation failed.')
+                                detail=f'Internal error occurred.')
 
-        zip_file_path = f'{settings.PACKAGES_FOLDER}/{settings.ZIP_FILE_NAME}'
-        try:
-            # Create the zip file.
-            with zipfile.ZipFile(zip_file_path, 'w') as zf:
-                zf.write(json_file_path, f'{settings.JSON_FILE_NAME}')
-
-            # Concatenate the download URL.
-            packagelist_down_url = f'{settings.BASE_URL}/packages/downloads/{settings.ZIP_FILE_NAME}'  #newpackagelist.zip
-            packagelist_length = os.path.getsize(zip_file_path)
-            packagelist_hash = get_package_hash(zip_file_path)
-
-            resp_dict = {"package_name": newpackagelist.packagelist_name,
-                         "package_version": newpackagelist.packagelist_version,
-                         "package_length": packagelist_length,
-                         "package_hash": packagelist_hash,
-                         "package_down_url": packagelist_down_url,
-                         "package_path": f'./blaster/',  # This is only for packagelist.json
-                         "package_run_cmd": ''}  # This is only for packagelist.json
-
-            return JSONResponse(content=jsonable_encoder(resp_dict))
-
-        except FileNotFoundError as e:
-            logger.error(f'Write {zip_file_path} failed.')
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                                detail=f'Internal operation failed.')
+        return JSONResponse(content=jsonable_encoder(resp_dict))
 
     else:
         """
-        请求为非package_name="packagelist"
+        请求: package_name != "packagelist"，则正常处理包请求
         """
-        # 检查package是否可用
         db_package: schemas.Package = crud.retrieve_package_by_package_name(db, package_name=package_name)
         if not db_package:
+            logger.info(f'Package {package_name} not found.')
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f"Package {package_name} not found.")
-
-        # 检查place是否可用
-        # [TODO]: 黑白名单，不要记录在package属性中
-        vp_str: str = db_package.valid_places  # e.g.: '1,2,3'
-        valid_list = vp_str.split(',')  # e.g.: ['1', '2', '3']
-
-        invp_str: str = db_package.invalid_places  # e.g.: '2,3'
-        invalid_list = invp_str.split(',')  # e.g.: ['2', '3']
-        # set去重，并取在白名单中但不在黑名单中的值
-        enabled_places = list(set(valid_list).difference(set(invalid_list)))  # e.g.: ['1']
+                                detail=f'Package {package_name} not found.')
 
         db_place: schemas.Place = crud.retrieve_place_by_place_code(db, place_code=place_code)
         if not db_place:
@@ -419,20 +380,22 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f'Place {place_code} not found.')
 
-        if str(db_place.id) not in enabled_places:
-            logger.info(f'This Place {place_code} is forbidden to update.')
+        # 检查package是否在可更新范围内
+        if not main_tools.check_update_enabled(package=db_package, place=db_place):
+            logger.info(f'The place {db_place.place_name} is forbidden to be updated.')
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail=f'This place {place_code} is forbidden to update.')
-        else:
-            resp_dict = {"package_name": db_package.package_name,
-                         "package_version": db_package.package_version,
-                         "package_length": db_package.package_length,
-                         "package_hash": db_package.package_hash,
-                         "package_down_url": db_package.package_down_url,
-                         "package_path": f'{db_place.package_path}{db_package.package_name}\\',  # e:\\blaster\\happymj
-                         "package_run_cmd": db_package.package_run_cmd}
+                                detail=f"This package {package_name} are not enabled to be updated.")
 
-            return JSONResponse(content=jsonable_encoder(resp_dict))
+        # 组装返回数据
+        resp_dict = main_tools.assemble_resp_dict(pname=db_package.package_name,
+                                                  pversion=db_package.package_version,
+                                                  plength=db_package.package_length,
+                                                  phash=db_package.package_hash,
+                                                  pdownurl=db_package.package_down_url,
+                                                  ppath=db_place.package_path,
+                                                  pcmd=db_package.package_run_cmd)
+
+        return JSONResponse(content=jsonable_encoder(resp_dict))
 
 
 if __name__ == '__main__':

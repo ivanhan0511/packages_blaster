@@ -11,28 +11,28 @@ def create_place(db: Session, place: schemas.PlaceCreate):
     db.add(db_place)
     db.commit()
     db.refresh(db_place)
-    logger.debug(f'CREATE.')
+    logger.debug(f'CREATE a place with {place.dict()}.')
 
     return db_place
 
 
 def retrieve_places(db: Session, skip: int, limit: int):
-    logger.info(f'RETRIEVE, {skip} - {limit}.')
+    logger.debug(f'RETRIEVE paginated places, {skip} - {limit}.')
     return db.query(Place).offset(skip).limit(limit).all()
 
 
 def retrieve_place_by_place_id(db: Session, place_id: int):
-    logger.info(f'RETRIEVE, {place_id}.')
+    logger.debug(f'RETRIEVE a place by `place_id` {place_id}.')
     return db.query(Place).filter(Place.id == place_id).first()
 
 
 def retrieve_place_by_place_code(db: Session, place_code: str):
-    logger.info(f'RETRIEVE, {place_code}.')
+    logger.debug(f'RETRIEVE a place by `place_code` {place_code}.')
     return db.query(Place).filter(Place.place_code == place_code).first()
 
 
 def retrieve_place_by_place_name(db: Session, place_name: str):
-    logger.info(f'RETRIEVE, `retrieve_place_by_place_name` : {place_name}.')
+    logger.debug(f'RETRIEVE a place by `place_name` : {place_name}.')
     return db.query(Place).filter(Place.place_name == place_name).first()
 
 
@@ -43,7 +43,7 @@ def retrieve_places_by_fuzzy_code(db: Session, place_code: str):
     :param place_code:
     :return: Place list
     """
-    logger.info(f'RETRIEVE, {place_code}.')
+    logger.debug(f'RETRIEVE places by fuzzy `place_code` {place_code}.')
     return db.query(Place).filter(Place.place_code.ilike(f'{place_code}%')).all()
 
 
@@ -54,7 +54,7 @@ def retrieve_places_by_fuzzy_name(db: Session, place_name: str):
     :param place_name:
     :return: Place list
     """
-    logger.info(f'RETRIEVE, {place_name}.')
+    logger.debug(f'RETRIEVE places by fuzzy `place_name` {place_name}.')
     return db.query(Place).filter(Place.place_name.ilike(f'{place_name}%')).all()
 
 
@@ -69,7 +69,7 @@ def update_place(db: Session, place_id: int, place: schemas.PlaceCreate):
         db_place.package_path = place.package_path
     db.commit()
     db.refresh(db_place)
-    logger.info(f'UPDATE, {place_id}.')
+    logger.debug(f'UPDATE a place {place_id}.')
     return db_place
 
 
@@ -78,7 +78,7 @@ def delete_place(db: Session, place_id: int):
     # [TODO]: 删除返回"204 NO CONTENT"，GET查询返回"410 GONE"???
     db.query(Place).filter(Place.id == place_id).delete()
     db.commit()
-    logger.info(f'DELETE, {place_id}.')
+    logger.debug(f'DELETE a place {place_id}.')
     return {"id": f"{place_id}",
             "object": "place",
             "deleted": True}
@@ -93,7 +93,7 @@ def create_package(db: Session, req_dict: dict):
     db.add(db_package)
     db.commit()
     db.refresh(db_package)
-    logger.info(f'CREATE, {req_dict}')
+    logger.debug(f'CREATE a package with {req_dict}.')
     return db_package
 
 
@@ -109,7 +109,7 @@ def retrieve_packages_for_web(db: Session, skip: int, limit: int):
     """
     # if skip and
     # db.query(Package).slice()
-    logger.info(f'RETRIEVE, {skip} - {limit}.')
+    logger.debug(f'RETRIEVE paginated packages {skip} - {limit}.')
     return db.query(Package).offset(skip).limit(limit).all()
 
 
@@ -123,27 +123,31 @@ def retrieve_packages_all(db: Session, start: int = None, stop: int = None):
     """
     # if skip and
     # db.query(Package).slice()
-    logger.info(f'RETRIEVE, {start} - {stop}.')
+    logger.debug(f'RETRIEVE all packages for backend usage: {start} - {stop}.')
     return db.query(Package).slice(start, stop).all()
 
 
 def retrieve_package_by_package_id(db: Session, package_id: int):
-    logger.info(f'RETRIEVE, {package_id}.')
+    logger.debug(f'RETRIEVE a package by `package_id` {package_id}.')
     return db.query(Package).filter(Package.id == package_id).first()
 
 
 def retrieve_package_by_package_name(db: Session, package_name: str):
-    logger.info(f'RETRIEVE, {package_name}.')
+    logger.debug(f'RETRIEVE a package by `package_name` {package_name}.')
     return db.query(Package).filter(Package.package_name == package_name).first()
 
 
 def retrieve_packages_by_fuzzy_name(db: Session, package_name: str):
-    logger.info(f'RETRIEVE, {package_name}.')
+    logger.debug(f'RETRIEVE packages by fuzzy `package_name` {package_name}.')
     return db.query(Package).filter(Package.package_name.ilike(f'{package_name}%')).all()
 
 
-def update_package_to_publish(db: Session, package_id: int, package_version: str,
-                              valid_places: str, invalid_places: str, package_run_cmd: str):
+def update_package_to_publish(package_id: int,
+                              package_version: str,
+                              valid_places: str,
+                              invalid_places: str,
+                              package_run_cmd: str,
+                              db: Session):
     db_package: schemas.PackageUpdate = db.query(Package).filter(Package.id == package_id).first()
     db_package.package_version = package_version
     db_package.valid_places = valid_places
@@ -152,14 +156,14 @@ def update_package_to_publish(db: Session, package_id: int, package_version: str
         db_package.package_run_cmd = package_run_cmd
     db.commit()
     db.refresh(db_package)
-    logger.info(f'UPDATE, {package_id}.')
+    logger.debug(f'UPDATE a package {package_id}.')
     return db_package
 
 
 def delete_package(db: Session, package_id: int):
     db.query(Package).filter(Package.id == package_id).delete()
     db.commit()
-    logger.info(f'DELETE, {package_id}')
+    logger.debug(f'DELETE a package {package_id}')
     return {'id': f'{package_id}',
             'object': 'package',
             'delete': True}
@@ -173,15 +177,15 @@ def create_newpackagelist(db: Session, npl_dict: dict):
     db.add(db_package_list)
     db.commit()
     db.refresh(db_package_list)
-    logger.info(f'CREATE newpackagelist, {npl_dict}.')
+    logger.debug(f'CREATE newpackagelist with {npl_dict}.')
     return db_package_list
 
 
 def retrieve_newpackagelists(db: Session, skip: int, limit: int):
-    logger.info(f'RETRIEVE, {skip} - {limit}.')
+    logger.debug(f'RETRIEVE paginated newpackagelist {skip} - {limit}.')
     return db.query(PackageList).offset(skip).limit(limit).all()
 
 
 def retrieve_newpackagelist_desc(db: Session):
-    logger.info(f'RETRIEVE, desc')
+    logger.debug(f'RETRIEVE a latest newpackagelist by desc')
     return db.query(PackageList).order_by(PackageList.id.desc()).first()
