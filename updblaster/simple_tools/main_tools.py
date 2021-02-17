@@ -56,23 +56,34 @@ def check_update_enabled(package: schemas.Package, place: schemas.Place) -> bool
         return False
 
 
-def assemble_resp_dict(pname: str,
+def assemble_json_dict(pname: str,
                        pversion: str,
                        plength: str,
                        phash: str,
                        pdownurl: str,
-                       ppath: str,
-                       pcmd: str) -> dict:
+                       pcmd: str,
+                       ppath: Optional[str] = None,) -> dict:
 
-    resp_dict = {"package_name": pname,
-                 "package_version": pversion,
-                 "package_length": plength,
-                 "package_hash": phash,
-                 "package_down_url": pdownurl,
-                 "package_path": ppath,
-                 "package_run_cmd": pcmd}
+    if ppath:
+        resp_dict = {"package_name": pname,
+                     "package_version": pversion,
+                     "package_length": plength,
+                     "package_hash": phash,
+                     "package_down_url": pdownurl,
+                     "package_path": ppath,
+                     "package_run_cmd": pcmd}
 
-    return resp_dict
+        return resp_dict
+
+    else:
+        resp_dict = {"package_name": pname,
+                     "package_version": pversion,
+                     "package_length": plength,
+                     "package_hash": phash,
+                     "package_down_url": pdownurl,
+                     "package_run_cmd": pcmd}
+
+        return resp_dict
 
 
 def assemble_newpackagelist_dict(newpackagelist: schemas.PackagesList,
@@ -82,12 +93,12 @@ def assemble_newpackagelist_dict(newpackagelist: schemas.PackagesList,
     for package in packages:
         # 嵌套循环获取各个package的数据
         # data_dict = assemble_resp_dict(package=package, place=place)
-        data_dict = assemble_resp_dict(pname=package.package_name,
+        data_dict = assemble_json_dict(pname=package.package_name,
                                        pversion=package.package_version,
                                        plength=package.package_length,
                                        phash=package.package_hash,
                                        pdownurl=package.package_down_url,
-                                       ppath=place.package_path,
+                                       ppath=f'{place.package_path}{package.package_name}\\',
                                        pcmd=package.package_run_cmd)
 
         data_list.append(data_dict)
@@ -135,7 +146,7 @@ def generate_zipped_json_file_then_resp(newpackagelist_dict: dict):
     #              "package_down_url": packagelist_down_url,
     #              "package_path": f'./blaster/',  # This is only for packagelist.json
     #              "package_run_cmd": ''}  # This is only for packagelist.json
-    resp_dict = assemble_resp_dict(pname=newpackagelist_dict.get('packagelist_name'),
+    resp_dict = assemble_json_dict(pname=newpackagelist_dict.get('packagelist_name'),
                                    pversion=newpackagelist_dict.get('packagelist_version'),
                                    plength=str(packagelist_length),
                                    phash=packagelist_hash,

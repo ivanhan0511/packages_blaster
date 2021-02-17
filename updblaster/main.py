@@ -177,13 +177,18 @@ async def add_package(package_name: str = Query(..., min_length=2, max_length=32
     package_down_url = f'{settings.BASE_URL}/packages/downloads/{file.filename}'
 
     # [TODO]: 抽取方法
-    req_dict = {'package_name': package_name,
-                'package_version': package_version,
-                'package_length': package_length,
-                'package_hash': package_hash,
-                'package_down_url': package_down_url,
-                'package_run_cmd': package_run_cmd}
-
+    # req_dict = {'package_name': package_name,
+    #             'package_version': package_version,
+    #             'package_length': package_length,
+    #             'package_hash': package_hash,
+    #             'package_down_url': package_down_url,
+    #             'package_run_cmd': package_run_cmd}
+    req_dict = main_tools.assemble_json_dict(pname=package_name,
+                                             pversion=package_version,
+                                             plength=str(package_length),
+                                             phash=package_hash,
+                                             pdownurl=package_down_url,
+                                             pcmd=package_run_cmd)
     db_package = crud.create_package(db=db, req_dict=req_dict)
 
     if db_package:
@@ -264,7 +269,7 @@ def remove_package(package_id: int, db: Session = Depends(get_db)) -> json:
         resp = crud.delete_package(db=db, package_id=package_id)
         logger.info(f'Remove package {package_id} done.')
 
-        # 在删除package成功之后，更新newpackagelist的版本
+        # 在删除package成功之后，更新newpackagelist的版本，此后再返回
         version = crud.retrieve_newpackagelist_desc(db=db)
         if version:
             new_version = f'{version.id + 1}'
@@ -303,7 +308,7 @@ async def download_package(zip_file_name: str):
                             detail=f'The request package {zip_file_name} not found.')
 
 
-@app.get('/npl/', response_model=schemas.PackagesList)
+@app.get('/npl/', response_model=List[schemas.PackagesList])
 def get_newpackagelists(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)) -> list:
     db_newpackagelists = crud.retrieve_newpackagelists(db=db, skip=skip, limit=limit)
 
@@ -387,12 +392,12 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
                                 detail=f"This package {package_name} are not enabled to be updated.")
 
         # 组装返回数据
-        resp_dict = main_tools.assemble_resp_dict(pname=db_package.package_name,
+        resp_dict = main_tools.assemble_json_dict(pname=db_package.package_name,
                                                   pversion=db_package.package_version,
                                                   plength=db_package.package_length,
                                                   phash=db_package.package_hash,
                                                   pdownurl=db_package.package_down_url,
-                                                  ppath=db_place.package_path,
+                                                  ppath=f'{db_place.package_path}{db_package.package_name}\\',  # e:\\blaster\\happymj\\
                                                   pcmd=db_package.package_run_cmd)
 
         return JSONResponse(content=jsonable_encoder(resp_dict))
