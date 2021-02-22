@@ -8,7 +8,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
-from . import settings
+from . import local_settings
 from .database import SessionLocal, engine
 from .models import Base
 from . import schemas, crud
@@ -158,7 +158,7 @@ async def add_package(package_name: str = Query(..., min_length=2, max_length=32
     try:
         # 以下1行代码可能涉及性能问题，因为此处为web端上传的package文件，可能是以GB为单位的包
         data = await file.read()
-        with open(f'{settings.PACKAGES_FOLDER}/{file.filename}', "wb") as f:
+        with open(f'{local_settings.PACKAGES_FOLDER}/{file.filename}', "wb") as f:
             f.write(data)
         logger.debug(f'Spending time for uploading: {time.time() - start}, file name: {file.filename}')
     except Exception as e:
@@ -167,14 +167,14 @@ async def add_package(package_name: str = Query(..., min_length=2, max_length=32
                             detail=f'Upload file error, detail: {e}.')
 
     # Prepare for creating package instance.
-    file_path = f'{settings.PACKAGES_FOLDER}/{file.filename}'
+    file_path = f'{local_settings.PACKAGES_FOLDER}/{file.filename}'
 
     # 以下2行代码可能涉及性能问题，因为此处为web端上传的package文件，可能是以GB为单位的包
     package_length = os.path.getsize(filename=file_path)
     package_hash = main_tools.get_package_hash(file_path)
 
     # e.g.: http://127.0.0.1:21080/packages/downloads/happymj.zip
-    package_down_url = f'{settings.BASE_URL}/packages/downloads/{file.filename}'
+    package_down_url = f'{local_settings.BASE_URL}/packages/downloads/{file.filename}'
 
     # [TODO]: 抽取方法
     # req_dict = {'package_name': package_name,
@@ -296,7 +296,7 @@ async def download_package(zip_file_name: str):
     :param zip_file_name:
     :return: The downloaded packages are always with .zip
     """
-    file_path = f'{settings.PACKAGES_FOLDER}/{zip_file_name}'
+    file_path = f'{local_settings.PACKAGES_FOLDER}/{zip_file_name}'
     if os.path.exists(file_path):
         logger.debug(f'The request package {zip_file_name} exists, to be downloaded.')
 
@@ -405,4 +405,4 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run(app=app, host='0.0.0.0', port=21080, workers=1, reload=True)
+    uvicorn.run(app=app, host='0.0.0.0', port=21080, workers=2, reload=True)

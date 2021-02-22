@@ -1,4 +1,5 @@
 import logging
+from . import local_settings
 
 
 class CustomFormatter(logging.Formatter):
@@ -35,7 +36,10 @@ console_handler.setLevel(logging.DEBUG)
 console_handler.setFormatter(CustomFormatter())
 
 # Create file handler
-file_handler = logging.FileHandler('/Users/ivan/logs/default.log')
+if local_settings.DEBUG:
+    file_handler = logging.FileHandler(f'{local_settings.PACKAGES_FOLDER}/logs/default.log')
+else:
+    file_handler = logging.FileHandler(f'{local_settings.PACKAGES_FOLDER}/logs/default.log')
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(CustomFormatter())
 
