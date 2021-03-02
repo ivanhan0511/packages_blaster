@@ -152,8 +152,12 @@ def update_package_to_publish(package_id: int,
     db_package.package_version = package_version
     db_package.valid_places = valid_places
     db_package.invalid_places = invalid_places
-    if package_run_cmd:
-        db_package.package_run_cmd = package_run_cmd
+    # if package_run_cmd:
+    #     db_package.package_run_cmd = package_run_cmd
+    # else:
+    #     db_package.package_run_cmd = ""
+    db_package.package_run_cmd = package_run_cmd
+
     db.commit()
     db.refresh(db_package)
     logger.debug(f'UPDATE a package {package_id}.')

@@ -250,14 +250,13 @@ def publish_package(package_id: int,
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f'Package {package_id} not found.')
 
+    logger.debug(f'==== run_cmd: {package_run_cmd} ====')
     db_package = crud.update_package_to_publish(package_id=package_id,
                                                 package_version=package_version,
                                                 valid_places=valid_places,
                                                 invalid_places=invalid_places,
                                                 package_run_cmd=package_run_cmd,
                                                 db=db)
-    # [TODO]: 此处没有容错？
-
     return db_package
 
 

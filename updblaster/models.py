@@ -12,7 +12,17 @@ class Place(Base):
     place_code = Column(String(256), unique=True, nullable=False, index=True, comment='Place识别码')
     place_name = Column(String(256), nullable=False, index=True, comment='Place名称')
     description = Column(String(1024), comment='描述')
-    package_path = Column(String(512), nullable=False, default='e:\\blaster\\', comment='Customized Path')
+    # package_path = Column(String(512), nullable=False, default='e:\\blaster\\', comment='Customized Path')
+    # 通配符的概念，例如games：游戏盘，images：镜像盘......接口以某网吧的某游戏盘为默认规则
+    # 网吧服务端收到该信息后，会按照"镜像盘"的type去注册表查找数据库位置，再从SQLite中找到对应"游戏盘"的系统盘符，例如"E:\"盘
+    # drive与type对应关系是通过YGX的逆向工程得出来的，记录如下：
+    # type, comment  <==> drive, comment
+    #    0, 未配置    <==>    67, C盘
+    #    1, 游戏盘    <==>    71, G盘
+    #    2, 回写盘    <==>    72, H盘
+    #    3, 镜像盘    <==>    70, F盘
+    #    4, 下载盘    <==>    69, E盘
+    package_path = Column(String(512), nullable=False, default='games', comment='Customized Path')
     created = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
 
 
