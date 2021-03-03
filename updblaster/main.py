@@ -8,12 +8,12 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
-from . import local_settings
-from .database import SessionLocal, engine
-from .models import Base
-from . import schemas, crud
-from .logger import logger
-from .simple_tools import main_tools
+from updblaster import local_settings
+from updblaster.database import SessionLocal, engine
+from updblaster.models import Base
+from updblaster import schemas, crud
+from updblaster.logger import logger
+from updblaster.simple_tools import main_tools
 
 Base.metadata.create_all(bind=engine)
 
@@ -136,6 +136,7 @@ def remove_place(place_id: int, db: Session = Depends(get_db)):
 async def add_package(package_name: str = Query(..., min_length=2, max_length=32),
                       package_version: str = Query(..., min_length=1, max_length=16),
                       package_run_cmd: Optional[str] = Query(None, min_length=2, max_length=512),
+                      package_del_cmd: Optional[str] = Query(None, min_length=2, max_length=512),
                       file: UploadFile = File(...),
                       db: Session = Depends(get_db)):
     """
@@ -183,12 +184,13 @@ async def add_package(package_name: str = Query(..., min_length=2, max_length=32
     #             'package_hash': package_hash,
     #             'package_down_url': package_down_url,
     #             'package_run_cmd': package_run_cmd}
-    req_dict = main_tools.assemble_json_dict(pname=package_name,
-                                             pversion=package_version,
-                                             plength=str(package_length),
-                                             phash=package_hash,
-                                             pdownurl=package_down_url,
-                                             pcmd=package_run_cmd)
+    req_dict = main_tools.assemble_package_dict(pname=package_name,
+                                                pversion=package_version,
+                                                plength=str(package_length),
+                                                phash=package_hash,
+                                                pdownurl=package_down_url,
+                                                pcmd=package_run_cmd,
+                                                pdel=package_del_cmd)
     db_package = crud.create_package(db=db, req_dict=req_dict)
 
     if db_package:
@@ -244,6 +246,7 @@ def publish_package(package_id: int,
                     valid_places: str,
                     invalid_places: Optional[str] = Query(None),
                     package_run_cmd: Optional[str] = Query(None),
+                    package_del_cmd: Optional[str] = Query(None),
                     db: Session = Depends(get_db)):
     if not crud.retrieve_package_by_package_id(package_id=package_id, db=db):
         logger.error(f'Package {package_id} not found.')
@@ -256,6 +259,7 @@ def publish_package(package_id: int,
                                                 valid_places=valid_places,
                                                 invalid_places=invalid_places,
                                                 package_run_cmd=package_run_cmd,
+                                                package_del_cmd=package_del_cmd,
                                                 db=db)
     return db_package
 
@@ -391,17 +395,20 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
                                 detail=f"This package {package_name} are not enabled to be updated.")
 
         # 组装返回数据
-        resp_dict = main_tools.assemble_json_dict(pname=db_package.package_name,
-                                                  pversion=db_package.package_version,
-                                                  plength=db_package.package_length,
-                                                  phash=db_package.package_hash,
-                                                  pdownurl=db_package.package_down_url,
-                                                  ppath=f'{db_place.package_path}{db_package.package_name}\\',  # e:\\blaster\\happymj\\
-                                                  pcmd=db_package.package_run_cmd)
+        resp_dict = main_tools.assemble_package_dict(pname=db_package.package_name,
+                                                     pversion=db_package.package_version,
+                                                     plength=db_package.package_length,
+                                                     phash=db_package.package_hash,
+                                                     pdownurl=db_package.package_down_url,
+                                                     ppath=f'{db_place.package_path}{db_package.package_name}\\',  # e:\\blaster\\happymj\\
+                                                     pcmd=db_package.package_run_cmd,
+                                                     pdel=db_package.package_del_cmd)
 
         return JSONResponse(content=jsonable_encoder(resp_dict))
 
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run(app=app, host='0.0.0.0', port=21080, workers=2, reload=True)
+
+    # uvicorn.run(app=app, host='0.0.0.0', port=21080, workers=2, reload=True)
+    uvicorn.run(app=app, host='0.0.0.0', port=21080)

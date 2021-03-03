@@ -35,6 +35,7 @@ class PackageBase(BaseModel):
     valid_places: Optional[str]
     invalid_places: Optional[str]
     package_run_cmd: Optional[str]
+    package_del_cmd: Optional[str]
 
 
 class PackageCreate(PackageBase):

@@ -1,8 +1,7 @@
-import datetime
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.sql import func
 
-from .database import Base
+from updblaster.database import Base
 
 
 class Place(Base):
@@ -36,6 +35,7 @@ class Package(Base):
     package_hash = Column(String(256), nullable=False, comment='Package哈希值')
     package_down_url = Column(String(256), nullable=False, comment='下载地址')
     package_run_cmd = Column(String(256), nullable=True, default='', comment='执行命令')
+    package_del_cmd = Column(String(256), nullable=True, default='', comment='删除命令')
     created = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
     valid_places = Column(String(1024), default='', comment='白名单')
     invalid_places = Column(String(1024), default='', comment='黑名单')

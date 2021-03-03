@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 
-from .models import Place, Package, PackageList, History
-from . import schemas
-from .logger import logger
+from updblaster.models import Place, Package, PackageList, History
+from updblaster import schemas
+from updblaster.logger import logger
 
 
 # Place
@@ -147,6 +147,7 @@ def update_package_to_publish(package_id: int,
                               valid_places: str,
                               invalid_places: str,
                               package_run_cmd: str,
+                              package_del_cmd: str,
                               db: Session):
     db_package: schemas.PackageUpdate = db.query(Package).filter(Package.id == package_id).first()
     db_package.package_version = package_version
@@ -157,6 +158,7 @@ def update_package_to_publish(package_id: int,
     # else:
     #     db_package.package_run_cmd = ""
     db_package.package_run_cmd = package_run_cmd
+    db_package.package_del_cmd = package_del_cmd
 
     db.commit()
     db.refresh(db_package)
