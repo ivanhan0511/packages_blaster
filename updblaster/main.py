@@ -400,7 +400,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
                                                      plength=db_package.package_length,
                                                      phash=db_package.package_hash,
                                                      pdownurl=db_package.package_down_url,
-                                                     ppath=f'{db_place.package_path}{db_package.package_name}\\',  # e:\\blaster\\happymj\\
+                                                     ppath=f'{db_place.package_path}{db_package.package_name}\\',  # [games]:\\blaster\\happymj\\
                                                      pcmd=db_package.package_run_cmd,
                                                      pdel=db_package.package_del_cmd)
 
@@ -410,5 +410,4 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
 if __name__ == '__main__':
     import uvicorn
 
-    # uvicorn.run(app=app, host='0.0.0.0', port=21080, workers=2, reload=True)
-    uvicorn.run(app=app, host='0.0.0.0', port=21080)
+    uvicorn.run(app='main:app', host='0.0.0.0', port=21080, workers=2, reload=True)
