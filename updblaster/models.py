@@ -23,6 +23,7 @@ class Place(Base):
     #    4, 下载盘    <==>    69, E盘
     package_path = Column(String(512), nullable=False, default='games', comment='Customized Path')
     created = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
+    # created = Column(DateTime(timezone=True), onupdate=func.now(), comment="创建时间")  # 更新用
 
 
 class Package(Base):
