@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 
-from updblaster.models import Place, Package, PackageList, History
-from updblaster import schemas
-from updblaster.logger import logger
+from .models import Place, Package, PackageList, History
+from . import schemas
+from .logger import logger
 
 
 # Place

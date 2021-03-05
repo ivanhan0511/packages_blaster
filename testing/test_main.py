@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from updblaster.main import app
+from main import app
 
 
 client = TestClient(app)
