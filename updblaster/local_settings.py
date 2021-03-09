@@ -12,4 +12,4 @@ if DEBUG:
 else:
     # Formal ENV
     BASE_URL = 'http://update.zhzhiyu.com:21080'
-    PACKAGES_FOLDER = '/home/ubuntu/packages'  # Folder in Aliyun ECS cloud server
+    PACKAGES_FOLDER = '/opt/packages'  # Folder in Aliyun ECS cloud server: Ubuntu 20.04

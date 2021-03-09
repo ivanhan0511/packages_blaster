@@ -6,6 +6,7 @@ from typing import List, Optional
 from fastapi import Depends, FastAPI, HTTPException, status, File, UploadFile, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from updblaster import local_settings
@@ -18,6 +19,8 @@ from updblaster.simple_tools import main_tools
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+app.mount('/static', StaticFiles(directory=f'{local_settings.PACKAGES_FOLDER}/static'), name='static')
 
 
 # Dependency
@@ -408,5 +411,4 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
 
 if __name__ == '__main__':
     import uvicorn
-
     uvicorn.run(app='main:app', host='0.0.0.0', port=21080, workers=2, reload=True)
