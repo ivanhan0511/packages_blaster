@@ -34,18 +34,22 @@ def check_update_enabled(package: schemas.Package, place: schemas.Place) -> bool
     :return: Boolean
     """
     vp_str: str = package.valid_places  # e.g.: '1,2,3'
-    valid_list = vp_str.split(',')  # e.g.: ['1', '2', '3']
+    if not vp_str:
+        logger.debug(f'Valid places are: {vp_str}')
+        valid_list = []  # e.g.: ['1', '2', '3'] or None
+    else:
+        valid_list = vp_str.split(',')  # e.g.: ['1', '2', '3']
 
     invp_str: str = package.invalid_places  # e.g.: '2,3'
     # package.invalid_places是可选参数，数据库中是可以为NULL的
     if not invp_str:
         logger.debug(f'Invalid places are: {invp_str}')
-        invalid_list = []  # e.g.: ['2', '3'] or None
+        invalid_list = []  # e.g.: ['3', '4'] or None
     else:
-        invalid_list = invp_str.split(',')  # e.g.: ['2', '3']
+        invalid_list = invp_str.split(',')  # e.g.: ['3', '4']
 
-    # set去重，并取在白名单中但不在黑名单中的值
-    enabled_places = list(set(valid_list).difference(set(invalid_list)))  # e.g.: ['1']
+    # set去重，并取在白名单(valid_list)中但不在黑名单(invalid_list)中的值
+    enabled_places = list(set(valid_list).difference(set(invalid_list)))  # e.g.: ['1', '2']
     logger.debug(f'Enabled places are: {enabled_places}.')
 
     if str(place.id) in enabled_places:
@@ -62,35 +66,20 @@ def assemble_package_dict(pname: str,
                           pdownurl: str,
                           pcmd: str,
                           pdel: str,
-                          ppath: Optional[str] = None, ) -> dict:
-
-    if ppath:
-        resp_dict = {"package_name": pname,
-                     "package_version": pversion,
-                     "package_length": plength,
-                     "package_hash": phash,
-                     "package_down_url": pdownurl,
-                     "package_path": ppath,
-                     "package_run_cmd": pcmd,
-                     "package_del_cmd": pdel}
-
-        return resp_dict
-
-    else:
-        resp_dict = {"package_name": pname,
-                     "package_version": pversion,
-                     "package_length": plength,
-                     "package_hash": phash,
-                     "package_down_url": pdownurl,
-                     "package_run_cmd": pcmd,
-                     "package_del_cmd": pdel}
-
-        return resp_dict
+                          ppath: str) -> dict:
+    resp_dict = {"package_name": pname,
+                 "package_version": pversion,
+                 "package_length": plength,
+                 "package_hash": phash,
+                 "package_down_url": pdownurl,
+                 "package_path": ppath,
+                 "package_run_cmd": pcmd,
+                 "package_del_cmd": pdel}
+    return resp_dict
 
 
 def assemble_newpackagelist_dict(newpackagelist: schemas.PackagesList,
-                                 packages: List[schemas.Package],
-                                 place: schemas.Place) -> dict:
+                                 packages: List[schemas.Package]) -> dict:
     data_list = []
     for package in packages:
         # 嵌套循环获取各个package的数据
@@ -100,7 +89,7 @@ def assemble_newpackagelist_dict(newpackagelist: schemas.PackagesList,
                                           plength=package.package_length,
                                           phash=package.package_hash,
                                           pdownurl=package.package_down_url,
-                                          ppath=f'{place.package_path}{package.package_name}\\',
+                                          ppath=package.package_path,
                                           pcmd=package.package_run_cmd,
                                           pdel=package.package_del_cmd)
 
@@ -121,7 +110,6 @@ def generate_zipped_json_file_then_resp(newpackagelist_dict: dict):
         # Create the json file.
         with open(json_file_path, 'w') as f:
             f.write(json.dumps(newpackagelist_dict, indent=4))  # 注意indent=4
-
     except IOError as e:
         logger.error(f'Write {json_file_path} failed. Error message: {e}')
         return None
@@ -131,7 +119,6 @@ def generate_zipped_json_file_then_resp(newpackagelist_dict: dict):
         # Create the zip file.
         with zipfile.ZipFile(zip_file_path, 'w') as zf:
             zf.write(json_file_path, f'{local_settings.JSON_FILE_NAME}')
-
     except IOError as e:
         logger.error(f'Write {zip_file_path} failed. Error message: {e}')
         return None
@@ -143,13 +130,6 @@ def generate_zipped_json_file_then_resp(newpackagelist_dict: dict):
 
     packagelist_down_url = f'{local_settings.BASE_URL}/packages/downloads/{local_settings.ZIP_FILE_NAME}'
 
-    # resp_dict = {"package_name": newpackagelist_dict.get("packagelist_name"),
-    #              "package_version": newpackagelist_dict.get("packagelist_version"),
-    #              "package_length": packagelist_length,
-    #              "package_hash": packagelist_hash,
-    #              "package_down_url": packagelist_down_url,
-    #              "package_path": f'./blaster/',  # This is only for packagelist.json
-    #              "package_run_cmd": ''}  # This is only for packagelist.json
     resp_dict = assemble_package_dict(pname=newpackagelist_dict.get('packagelist_name'),
                                       pversion=newpackagelist_dict.get('packagelist_version'),
                                       plength=str(packagelist_length),

@@ -21,9 +21,11 @@ class Place(Base):
     #    2, 回写盘    <==>    72, H盘
     #    3, 镜像盘    <==>    70, F盘
     #    4, 下载盘    <==>    69, E盘
-    package_path = Column(String(512), nullable=False, default='games', comment='Customized Path')
+
+    # Update: Mar 08, 2021, 取消在Place属性中设置包路径
+    # package_path = Column(String(512), nullable=False, default='games', comment='Customized Path')
     created = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
-    # created = Column(DateTime(timezone=True), onupdate=func.now(), comment="创建时间")  # 更新用
+    # last_updated = Column(DateTime(timezone=True), onupdate=func.now(), comment="最后更新时间")
 
 
 class Package(Base):
@@ -38,8 +40,10 @@ class Package(Base):
     package_run_cmd = Column(String(256), nullable=True, default='', comment='执行命令')
     package_del_cmd = Column(String(256), nullable=True, default='', comment='删除命令')
     created = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
+    # last_updated = Column(DateTime(timezone=True), onupdate=func.now(), comment="最后更新时间")
     valid_places = Column(String(1024), default='', comment='白名单')
     invalid_places = Column(String(1024), default='', comment='黑名单')
+    package_path = Column(String(512), nullable=False, comment='Customized Path')
 
 
 class PackageList(Base):
@@ -49,6 +53,7 @@ class PackageList(Base):
     packagelist_name = Column(String(256), nullable=False, default='packagelist', comment='packagelist名称')
     packagelist_version = Column(String(256), nullable=False, comment='packagelist版本')
     created = Column(DateTime(timezone=True), server_default=func.now(), comment='创建时间')
+    # last_updated = Column(DateTime(timezone=True), onupdate=func.now(), comment="最后更新时间")
 
 
 class History(Base):
@@ -59,4 +64,4 @@ class History(Base):
     package_version = Column(String(256), nullable=False, index=True, comment='Package版本')
     place_code = Column(String(256), nullable=False, index=True, comment='Place识别码')
     download_count = Column(String(10240), default='0', comment='同版本下载次数')
-    last_download = Column(DateTime(timezone=True), onupdate=func.now(), comment='最后下载时间')
+    # last_download = Column(DateTime(timezone=True), onupdate=func.now(), comment='最后下载时间')

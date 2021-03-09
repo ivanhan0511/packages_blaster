@@ -22,7 +22,7 @@ def retrieve_places(db: Session, skip: int, limit: int):
 
 
 def retrieve_place_by_place_id(db: Session, place_id: int):
-    logger.debug(f'RETRIEVE a place by `place_id` {place_id}.')
+    logger.debug(f'RETRIEVE a place by place_id `{place_id}`.')
     return db.query(Place).filter(Place.id == place_id).first()
 
 
@@ -65,8 +65,9 @@ def update_place(db: Session, place_id: int, place: schemas.PlaceCreate):
     db_place.place_name = place.place_name
     if place.description:
         db_place.description = place.description
-    if place.package_path:
-        db_place.package_path = place.package_path
+    # Update: Mar 08, canceled `package_path` attribute.
+    # if place.package_path:
+    #     db_place.package_path = place.package_path
     db.commit()
     db.refresh(db_place)
     logger.debug(f'UPDATE a place {place_id}.')
@@ -148,6 +149,7 @@ def update_package_to_publish(package_id: int,
                               invalid_places: str,
                               package_run_cmd: str,
                               package_del_cmd: str,
+                              package_path: str,
                               db: Session):
     db_package: schemas.PackageUpdate = db.query(Package).filter(Package.id == package_id).first()
     db_package.package_version = package_version
@@ -159,6 +161,7 @@ def update_package_to_publish(package_id: int,
     #     db_package.package_run_cmd = ""
     db_package.package_run_cmd = package_run_cmd
     db_package.package_del_cmd = package_del_cmd
+    db_package.package_path = package_path
 
     db.commit()
     db.refresh(db_package)

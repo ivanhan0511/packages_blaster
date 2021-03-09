@@ -8,7 +8,6 @@ class PlaceBase(BaseModel):
     place_code: str
     place_name: str
     description: Optional[str]
-    package_path: Optional[str]
 
 
 class PlaceCreate(PlaceBase):
@@ -36,6 +35,7 @@ class PackageBase(BaseModel):
     invalid_places: Optional[str]
     package_run_cmd: Optional[str]
     package_del_cmd: Optional[str]
+    package_path: Optional[str]
 
 
 class PackageCreate(PackageBase):

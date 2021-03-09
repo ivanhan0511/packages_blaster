@@ -61,11 +61,11 @@ def get_fuzzy_places(skip: int = 0, limit: int = 100, db: Session = Depends(get_
         fuzzy_n_places = crud.retrieve_places_by_fuzzy_name(db=db, place_name=q)
 
         if not fuzzy_c_places and not fuzzy_n_places:
+            # [TODO]: WTF logic
             if not fuzzy_n_places:
                 logger.info(f'No place matches {q}.')
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                     detail=f'No place matchs {q}.')
-
         # 求两次模糊查询的并集，并去重
         fuzzy_db_places = list(set(fuzzy_c_places).union(set(fuzzy_n_places)))
         logger.info(f'Get places done, with optional place code or place name {q}.')
@@ -137,6 +137,7 @@ async def add_package(package_name: str = Query(..., min_length=2, max_length=32
                       package_version: str = Query(..., min_length=1, max_length=16),
                       package_run_cmd: Optional[str] = Query(None, min_length=2, max_length=512),
                       package_del_cmd: Optional[str] = Query(None, min_length=2, max_length=512),
+                      package_path: str = Query(..., min_length=5),
                       file: UploadFile = File(...),
                       db: Session = Depends(get_db)):
     """
@@ -156,10 +157,11 @@ async def add_package(package_name: str = Query(..., min_length=2, max_length=32
 
     # [TODO]: 优化该上传前、上传中、上传中、上传效率等，参考相关文章
     start = time.time()
+    file_path = f'{local_settings.PACKAGES_FOLDER}/{file.filename}'
     try:
         # 以下1行代码可能涉及性能问题，因为此处为web端上传的package文件，可能是以GB为单位的包
         data = await file.read()
-        with open(f'{local_settings.PACKAGES_FOLDER}/{file.filename}', "wb") as f:
+        with open(file_path, "wb") as f:
             f.write(data)
         logger.debug(f'Spending time for uploading: {time.time() - start}, file name: {file.filename}')
     except Exception as e:
@@ -168,7 +170,7 @@ async def add_package(package_name: str = Query(..., min_length=2, max_length=32
                             detail=f'Upload file error, detail: {e}.')
 
     # Prepare for creating package instance.
-    file_path = f'{local_settings.PACKAGES_FOLDER}/{file.filename}'
+    # file_path = f'{local_settings.PACKAGES_FOLDER}/{file.filename}'
 
     # 以下2行代码可能涉及性能问题，因为此处为web端上传的package文件，可能是以GB为单位的包
     package_length = os.path.getsize(filename=file_path)
@@ -177,20 +179,14 @@ async def add_package(package_name: str = Query(..., min_length=2, max_length=32
     # e.g.: http://127.0.0.1:21080/packages/downloads/happymj.zip
     package_down_url = f'{local_settings.BASE_URL}/packages/downloads/{file.filename}'
 
-    # [TODO]: 抽取方法
-    # req_dict = {'package_name': package_name,
-    #             'package_version': package_version,
-    #             'package_length': package_length,
-    #             'package_hash': package_hash,
-    #             'package_down_url': package_down_url,
-    #             'package_run_cmd': package_run_cmd}
     req_dict = main_tools.assemble_package_dict(pname=package_name,
                                                 pversion=package_version,
                                                 plength=str(package_length),
                                                 phash=package_hash,
                                                 pdownurl=package_down_url,
                                                 pcmd=package_run_cmd,
-                                                pdel=package_del_cmd)
+                                                pdel=package_del_cmd,
+                                                ppath=package_path)
     db_package = crud.create_package(db=db, req_dict=req_dict)
 
     if db_package:
@@ -198,12 +194,12 @@ async def add_package(package_name: str = Query(..., min_length=2, max_length=32
         version = crud.retrieve_newpackagelist_desc(db=db)
         if version:
             new_version = f'{version.id + 1}'
-            d = {'packagelist_version': new_version}
-            crud.create_newpackagelist(db=db, npl_dict=d)
+            npl_dict = {'packagelist_version': new_version}
+            crud.create_newpackagelist(db=db, npl_dict=npl_dict)
             logger.info(f'After create a package, update the newpackagelist {new_version}.')
         else:
-            d = {'packagelist_version': '1'}
-            crud.create_newpackagelist(db=db, npl_dict=d)  # [TODO]: 此处是否需要容错？
+            npl_dict = {'packagelist_version': '1'}
+            crud.create_newpackagelist(db=db, npl_dict=npl_dict)
             logger.info(f'After create a package, update the newpackagelist 1.')
 
     return db_package
@@ -247,6 +243,7 @@ def publish_package(package_id: int,
                     invalid_places: Optional[str] = Query(None),
                     package_run_cmd: Optional[str] = Query(None),
                     package_del_cmd: Optional[str] = Query(None),
+                    package_path: str = Query(...),
                     db: Session = Depends(get_db)):
     if not crud.retrieve_package_by_package_id(package_id=package_id, db=db):
         logger.error(f'Package {package_id} not found.')
@@ -254,12 +251,14 @@ def publish_package(package_id: int,
                             detail=f'Package {package_id} not found.')
 
     logger.debug(f'==== run_cmd: {package_run_cmd} ====')
+    logger.debug(f'==== del_cmd: {package_del_cmd} ====')
     db_package = crud.update_package_to_publish(package_id=package_id,
                                                 package_version=package_version,
                                                 valid_places=valid_places,
                                                 invalid_places=invalid_places,
                                                 package_run_cmd=package_run_cmd,
                                                 package_del_cmd=package_del_cmd,
+                                                package_path=package_path,
                                                 db=db)
     return db_package
 
@@ -273,17 +272,17 @@ def remove_package(package_id: int, db: Session = Depends(get_db)) -> json:
         logger.info(f'Remove package {package_id} done.')
 
         # 在删除package成功之后，更新newpackagelist的版本，此后再返回
+        # [TODO]: 抽象方法
         version = crud.retrieve_newpackagelist_desc(db=db)
         if version:
             new_version = f'{version.id + 1}'
-            d = {'packagelist_version': new_version}
-            crud.create_newpackagelist(db=db, npl_dict=d)
+            npl_dict = {'packagelist_version': new_version}
+            crud.create_newpackagelist(db=db, npl_dict=npl_dict)
             logger.info(f'After delete a package {package_id}, updated the newpackagelist {new_version}.')
         else:
-            d = {'packagelist_version': '1'}
-            crud.create_newpackagelist(db=db, npl_dict=d)
+            npl_dict = {'packagelist_version': '1'}
+            crud.create_newpackagelist(db=db, npl_dict=npl_dict)
             logger.info(f'After delete a package {package_id}, updated the newpackagelist 1.')
-        # [TODO]: 此处是否需要容错？
 
         return JSONResponse(jsonable_encoder(resp))
     else:
@@ -301,7 +300,7 @@ async def download_package(zip_file_name: str):
     """
     file_path = f'{local_settings.PACKAGES_FOLDER}/{zip_file_name}'
     if os.path.exists(file_path):
-        logger.debug(f'The request package {zip_file_name} exists, to be downloaded.')
+        logger.debug(f'The request package {zip_file_name} is ready for downloading.')
 
         return FileResponse(file_path, filename=f'{zip_file_name}')
 
@@ -340,6 +339,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
         将json文件压缩成zip包，生成下载URL，返回
         """
         db_packages = crud.retrieve_packages_all(db=db)  # 不分页，获取所有packages
+        # [TODO]: 如果一个包都没有，部署器端无法识别，需要增加冗余方法
         if not db_packages:
             logger.error(f'No package found.')
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -360,8 +360,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
 
         # 组装外层newpackagelist的数据
         newpackagelist_dict = main_tools.assemble_newpackagelist_dict(newpackagelist=newpackagelist,
-                                                                      packages=db_packages,
-                                                                      place=db_place)
+                                                                      packages=db_packages)
 
         # 生成json文件并压缩成zip包
         resp_dict = main_tools.generate_zipped_json_file_then_resp(newpackagelist_dict=newpackagelist_dict)
@@ -400,7 +399,7 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
                                                      plength=db_package.package_length,
                                                      phash=db_package.package_hash,
                                                      pdownurl=db_package.package_down_url,
-                                                     ppath=f'{db_place.package_path}{db_package.package_name}\\',  # [games]:\\blaster\\happymj\\
+                                                     ppath=db_package.package_path,  # [games]:\\blaster\\happymj\\
                                                      pcmd=db_package.package_run_cmd,
                                                      pdel=db_package.package_del_cmd)
 

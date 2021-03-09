@@ -36,6 +36,7 @@ console_handler.setLevel(logging.DEBUG)
 console_handler.setFormatter(CustomFormatter())
 
 # Create file handler
+# [TODO]: 冗余并判断logs文件夹是否存在
 if local_settings.DEBUG:
     file_handler = logging.FileHandler(f'{local_settings.PACKAGES_FOLDER}/logs/default.log')
 else:
