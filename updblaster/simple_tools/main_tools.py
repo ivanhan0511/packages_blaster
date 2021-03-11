@@ -6,7 +6,7 @@ import hashlib
 import json
 import os
 import zipfile
-from typing import Optional, List
+from typing import List
 
 
 def get_package_hash(file_path: str) -> str:
