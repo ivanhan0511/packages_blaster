@@ -272,6 +272,7 @@ def remove_package(package_id: int, db: Session = Depends(get_db)) -> json:
 
     if db_package:
         resp = crud.delete_package(db=db, package_id=package_id)
+        # [TODO]: Delete physical package.
         logger.info(f'Remove package {package_id} done.')
 
         # 在删除package成功之后，更新newpackagelist的版本，此后再返回
