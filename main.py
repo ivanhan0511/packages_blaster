@@ -349,11 +349,11 @@ def resp_to_client(package_name: str, place_code: str, db: Session = Depends(get
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f'No package found.')
 
-        db_place = crud.retrieve_place_by_place_code(db=db, place_code=place_code)
-        if not db_place:
-            logger.error(f'No place found.')
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f'No place found.')
+        # db_place = crud.retrieve_place_by_place_code(db=db, place_code=place_code)
+        # if not db_place:
+        #     logger.error(f'No place found.')
+        #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+        #                         detail=f'No place found.')
 
         # 倒序获取最新id的行数据，也可以达到判断是否为空表的功能
         newpackagelist: schemas.PackagesList = crud.retrieve_newpackagelist_desc(db=db)

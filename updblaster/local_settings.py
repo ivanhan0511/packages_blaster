@@ -11,5 +11,5 @@ if DEBUG:
     PACKAGES_FOLDER = f'{Path.cwd()}/../../data'
 else:
     # Formal ENV
-    BASE_URL = 'http://update.zhzhiyu.com:80'
+    BASE_URL = 'http://update.zhzhiyu.com'
     PACKAGES_FOLDER = '/opt/packages'  # Folder in Aliyun ECS cloud server: Ubuntu 20.04, root user.
